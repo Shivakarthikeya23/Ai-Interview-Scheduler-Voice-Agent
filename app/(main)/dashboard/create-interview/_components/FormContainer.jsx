@@ -13,7 +13,7 @@ import { InterviewType } from '@/services/Constants'
 import { Button } from '@/components/ui/button'
 import { ArrowRight } from 'lucide-react'
 
-function FormContainer({onHandleInputChange}) {
+function FormContainer({onHandleInputChange, GoToNext}) {
 
     const [interviewType, setInterviewType] = useState([]);
 
@@ -22,6 +22,17 @@ function FormContainer({onHandleInputChange}) {
             onHandleInputChange('type', interviewType)
         }
     }, [interviewType])
+
+    const AddInterviewType=(type) => {
+        const data = interviewType.includes(type);
+        if(!data){
+            setInterviewType([...interviewType, type])
+        }else{
+            const newInterviewType = interviewType.filter((item) => item !== type);
+            setInterviewType(newInterviewType);
+        }
+      
+    }
 
   return (
     <div className='p-5 bg-white rounded-2xl'>
@@ -56,10 +67,11 @@ function FormContainer({onHandleInputChange}) {
             <h2 className='text-sm font-medium'>Interview Type</h2>
             <div className='flex flex-wrap gap-3 mt-2'>
                 {InterviewType.map((type, index) => (
-                    <div key={index} className='flex items-center gap-2 mt-2 p-1 px-2
+                    <div key={index} className={`flex items-center gap-2 mt-2 p-1 px-2
                      bg-white border border-gray-300  
-                     rounded-lg hover:bg-secondary'
-                     onClick={() => setInterviewType(prev => [...prev, type.title])}
+                     rounded-lg hover:bg-secondary 
+                     ${interviewType.includes(type.title)&&'bg-green-200 text-primary'} `}
+                     onClick={() => AddInterviewType(type.title)}
                     >
                         <type.icon className='w-4 h-4'/>
                         <span>{type.title}</span>
@@ -67,7 +79,7 @@ function FormContainer({onHandleInputChange}) {
                 ))}
             </div>
         </div>
-        <div className='mt-7 flex justify-end'>
+        <div className='mt-7 flex justify-end' onClick={()=>GoToNext()}>
         <Button>Generate Question <ArrowRight /> </Button>
         </div>
     </div>
