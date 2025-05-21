@@ -5,10 +5,9 @@ import QuestionListContainer from './QuestionListContainer';
 import { supabase } from '@/services/supabaseClient';
 import { useUser } from '@/app/Provider';
 import { Button } from '@/components/ui/button';
-import { v4 as uuidv4 } from 'uuid';
 import { v4 } from 'uuid';
 
-function QuestionsList({formData}) {
+function QuestionsList({formData, onCreateLink}) {
 
     const [loading, setLoading] = useState(true);
     const [questionList, setQuestionList] = useState();
@@ -75,10 +74,7 @@ function QuestionsList({formData}) {
         console.log("Insert success, data:", data);
       }
 
-      onCreateLink({
-        interviewId: interviewId,
-        
-      })
+      onCreateLink(interviewId)
     };
     
    

@@ -12,6 +12,7 @@ function CreateInterview() {
     const router = useRouter();
     const [step, setStep] = useState(1);
     const [formData, setFormData] = useState();
+    const [interviewId, setInterviewId] = useState();
     const onHandleInputChange = (field, value) => {
         setFormData(prev =>({
             ...prev,
@@ -28,6 +29,11 @@ function CreateInterview() {
         }
         setStep(prev => prev + 1);
     }
+
+    const onCreateLink =  (interviewId) => {
+        setInterviewId(interviewId);
+        setStep(step + 1);
+    }
   return (
     <div className='mt-10 px-10 md:px-24 lg:px-44 xl:px-56'>
         <div className='flex gap-5 items-center'>
@@ -37,8 +43,8 @@ function CreateInterview() {
         <Progress value={step*33.33} className='my-5' />
         {step==1?<FormContainer onHandleInputChange={onHandleInputChange}
         GoToNext={()=>onGoToNext()} />
-:step==2? <QuestionsList formData={formData} /> : 
-step==3? <InterviewLink /> : null }
+:step==2? <QuestionsList formData={formData} onCreateLink={(interviewId) => onCreateLink(interviewId)} /> : 
+step==3? <InterviewLink  interviewId={interviewId} formData={formData} /> : null }
     </div>
   )
 }
