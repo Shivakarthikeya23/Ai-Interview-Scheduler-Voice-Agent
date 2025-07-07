@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/services/supabaseClient";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export default function LandingPage() {
   const [user, setUser] = useState(null);
@@ -17,16 +18,35 @@ export default function LandingPage() {
   useEffect(() => {
     setMounted(true);
     checkUser();
-  }, []);
+
+    // Handle auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          setUser(session.user);
+          toast.success('Successfully signed in!');
+          router.push('/dashboard');
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [router]);
 
   const checkUser = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      
-      // Only redirect if mounted and user exists
-      if (mounted && user) {
-        router.push('/dashboard');
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) {
+        console.error("Error checking user:", error);
+      } else {
+        setUser(user);
+        
+        // Only redirect if mounted and user exists
+        if (mounted && user) {
+          router.push('/dashboard');
+        }
       }
     } catch (error) {
       console.error("Error checking user:", error);
@@ -37,15 +57,26 @@ export default function LandingPage() {
 
   const signInWithGoogle = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`
+          redirectTo: `${window.location.origin}/dashboard`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         }
       });
-      if (error) console.log('Error signing in with Google:', error.message);
+
+      if (error) {
+        console.error('OAuth Error:', error);
+        toast.error(`Authentication failed: ${error.message}`);
+      } else {
+        toast.info('Redirecting to Google...');
+      }
     } catch (error) {
       console.error("Error signing in:", error);
+      toast.error(`Sign in failed: ${error.message}`);
     }
   };
 

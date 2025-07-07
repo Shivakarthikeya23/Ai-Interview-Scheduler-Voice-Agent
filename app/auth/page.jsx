@@ -3,46 +3,82 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Logo from '@/components/Logo'
 import { supabase } from '@/services/supabaseClient'
-import { ArrowLeft, Chrome } from 'lucide-react'
+import { ArrowLeft, Chrome, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React, { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 function AuthPage() {
     const [loading, setLoading] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const [error, setError] = useState(null);
     const router = useRouter();
 
     useEffect(() => {
         setMounted(true);
         checkUser();
-    }, []);
+        
+        // Handle auth callback
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            async (event, session) => {
+                if (event === 'SIGNED_IN' && session) {
+                    toast.success('Successfully signed in!');
+                    router.push('/dashboard');
+                } else if (event === 'SIGNED_OUT') {
+                    toast.info('Signed out successfully');
+                }
+            }
+        );
+
+        return () => subscription.unsubscribe();
+    }, [router]);
 
     const checkUser = async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user }, error } = await supabase.auth.getUser();
+            if (error) {
+                console.error("Error checking user:", error);
+                setError(error.message);
+                return;
+            }
+            
             if (mounted && user) {
                 router.push('/dashboard');
             }
         } catch (error) {
             console.error("Error checking user:", error);
+            setError(error.message);
         }
     };
 
     const signInWithGoogle = async () => {
         setLoading(true);
+        setError(null);
+        
         try {
-            const { error } = await supabase.auth.signInWithOAuth({
+            const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: `${window.location.origin}/dashboard`
+                    redirectTo: `${window.location.origin}/dashboard`,
+                    queryParams: {
+                        access_type: 'offline',
+                        prompt: 'consent',
+                    },
                 }
             });
+
             if (error) {
-                console.log('Error signing in with Google:', error.message);
+                console.error('OAuth Error:', error);
+                setError(error.message);
+                toast.error(`Authentication failed: ${error.message}`);
+            } else {
+                toast.info('Redirecting to Google...');
             }
         } catch (error) {
             console.error("Error signing in:", error);
+            setError(error.message);
+            toast.error(`Sign in failed: ${error.message}`);
         } finally {
             setLoading(false);
         }
@@ -92,6 +128,19 @@ function AuthPage() {
                     </CardHeader>
                     
                     <CardContent className='space-y-6'>
+                        {error && (
+                            <div className='bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3'>
+                                <AlertCircle className='w-5 h-5 text-red-500 mt-0.5 flex-shrink-0' />
+                                <div>
+                                    <h4 className='text-sm font-medium text-red-800'>Authentication Error</h4>
+                                    <p className='text-sm text-red-700 mt-1'>{error}</p>
+                                    <p className='text-xs text-red-600 mt-2'>
+                                        Please make sure your Supabase project is properly configured with Google OAuth.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
                         <div className='space-y-4'>
                             <Button 
                                 onClick={signInWithGoogle} 
@@ -132,6 +181,13 @@ function AuthPage() {
                                     Privacy Policy
                                 </Link>
                             </p>
+                        </div>
+
+                        {/* Debug Info (remove in production) */}
+                        <div className='text-xs text-gray-400 text-center space-y-1'>
+                            <p>Environment: {process.env.NODE_ENV}</p>
+                            <p>Supabase URL: {process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Configured' : 'Missing'}</p>
+                            <p>Current URL: {typeof window !== 'undefined' ? window.location.origin : 'Server'}</p>
                         </div>
                     </CardContent>
                 </Card>
