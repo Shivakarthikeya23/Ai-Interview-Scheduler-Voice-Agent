@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { ArrowLeft, Calendar, User, Star, TrendingUp, TrendingDown, Award, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Calendar, User, Star, TrendingUp, Award, AlertCircle, Clock, Download, Share2, BarChart3 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 function FeedbackPage() {
     const [feedbackData, setFeedbackData] = useState(null);
@@ -13,7 +14,7 @@ function FeedbackPage() {
     const router = useRouter();
 
     useEffect(() => {
-        // Load feedback from localStorage (in production, fetch from database)
+        // Load feedback from localStorage
         const storedFeedback = localStorage.getItem('interviewFeedback');
         if (storedFeedback) {
             try {
@@ -21,6 +22,7 @@ function FeedbackPage() {
                 setFeedbackData(parsed);
             } catch (error) {
                 console.error('Error parsing feedback data:', error);
+                toast.error('Error loading feedback data');
             }
         }
         setLoading(false);
@@ -34,6 +36,12 @@ function FeedbackPage() {
             hour: '2-digit',
             minute: '2-digit'
         });
+    };
+
+    const formatDuration = (seconds) => {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     };
 
     const getRatingColor = (rating) => {
@@ -52,6 +60,54 @@ function FeedbackPage() {
         if (!ratings) return 0;
         const total = Object.values(ratings).reduce((sum, rating) => sum + rating, 0);
         return Math.round(total / Object.keys(ratings).length);
+    };
+
+    const downloadReport = () => {
+        if (!feedbackData) return;
+        
+        const reportData = {
+            candidate: feedbackData.candidateName,
+            position: feedbackData.jobPosition,
+            date: feedbackData.timestamp,
+            duration: feedbackData.duration,
+            feedback: feedbackData.feedback
+        };
+        
+        const dataStr = JSON.stringify(reportData, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+        
+        const exportFileDefaultName = `interview-feedback-${feedbackData.candidateName}-${new Date().toISOString().split('T')[0]}.json`;
+        
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+        
+        toast.success('Feedback report downloaded');
+    };
+
+    const shareReport = async () => {
+        if (!feedbackData) return;
+        
+        const shareText = `Interview Feedback for ${feedbackData.candidateName}
+Position: ${feedbackData.jobPosition}
+Overall Rating: ${getOverallRating(feedbackData.feedback?.rating)}/10
+Recommendation: ${feedbackData.feedback?.Recommendation || 'N/A'}`;
+
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Interview Feedback Report',
+                    text: shareText,
+                });
+                toast.success('Report shared successfully');
+            } catch (error) {
+                console.error('Error sharing:', error);
+            }
+        } else {
+            await navigator.clipboard.writeText(shareText);
+            toast.success('Report details copied to clipboard');
+        }
     };
 
     if (loading) {
@@ -101,25 +157,37 @@ function FeedbackPage() {
         );
     }
 
-    const { feedback, candidateName, candidateEmail, jobPosition, timestamp } = feedbackData;
+    const { feedback, candidateName, candidateEmail, jobPosition, timestamp, duration, totalQuestions } = feedbackData;
     const overallRating = getOverallRating(feedback?.rating);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6" id="feedback-content">
             {/* Header */}
-            <div className="flex items-center gap-4">
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => router.back()}
-                    className="flex items-center gap-2"
-                >
-                    <ArrowLeft className="w-4 h-4" />
-                    Back
-                </Button>
-                <div>
-                    <h1 className="text-3xl font-bold">Interview Feedback</h1>
-                    <p className="text-gray-600">Detailed analysis and recommendations</p>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => router.back()}
+                        className="flex items-center gap-2"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        Back
+                    </Button>
+                    <div>
+                        <h1 className="text-3xl font-bold">Interview Feedback</h1>
+                        <p className="text-gray-600">Detailed analysis and recommendations</p>
+                    </div>
+                </div>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={shareReport}>
+                        <Share2 className="w-4 h-4 mr-2" />
+                        Share
+                    </Button>
+                    <Button variant="outline" onClick={downloadReport}>
+                        <Download className="w-4 h-4 mr-2" />
+                        Download
+                    </Button>
                 </div>
             </div>
 
@@ -132,7 +200,7 @@ function FeedbackPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid md:grid-cols-2 gap-6">
+                    <div className="grid md:grid-cols-3 gap-6">
                         <div>
                             <h3 className="font-semibold mb-2">Candidate Information</h3>
                             <div className="space-y-2 text-sm">
@@ -140,6 +208,19 @@ function FeedbackPage() {
                                 <p><span className="font-medium">Email:</span> {candidateEmail}</p>
                                 <p><span className="font-medium">Position:</span> {jobPosition}</p>
                                 <p><span className="font-medium">Date:</span> {formatDate(timestamp)}</p>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 className="font-semibold mb-2">Interview Details</h3>
+                            <div className="space-y-2 text-sm">
+                                <p className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4" />
+                                    <span className="font-medium">Duration:</span> {duration ? formatDuration(duration) : 'N/A'}
+                                </p>
+                                <p className="flex items-center gap-2">
+                                    <BarChart3 className="w-4 h-4" />
+                                    <span className="font-medium">Questions:</span> {totalQuestions || 'N/A'}
+                                </p>
                             </div>
                         </div>
                         <div>
@@ -246,10 +327,7 @@ function FeedbackPage() {
                         <Button 
                             variant="outline"
                             onClick={() => {
-                                const printContent = document.getElementById('feedback-content');
-                                if (printContent) {
-                                    window.print();
-                                }
+                                window.print();
                             }}
                         >
                             Print Report
@@ -257,8 +335,8 @@ function FeedbackPage() {
                         <Button 
                             variant="outline"
                             onClick={() => {
-                                // Clear feedback data
                                 localStorage.removeItem('interviewFeedback');
+                                toast.success('Feedback cleared');
                                 router.push('/dashboard');
                             }}
                         >

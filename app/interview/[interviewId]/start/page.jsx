@@ -1,8 +1,8 @@
 "use client";
 import { InterviewDataContext } from "@/context/InterviewDataContext";
-import { Flashlight, Mic, Phone, Timer, AlertCircle } from "lucide-react";
+import { Mic, Phone, Timer, AlertCircle, Volume2, VolumeX } from "lucide-react";
 import Image from "next/image";
-import React, { useContext, useEffect, useState, useCallback } from "react";
+import React, { useContext, useEffect, useState, useCallback, useRef } from "react";
 import Vapi from "@vapi-ai/web";
 import AlertConfirmation from "./_components/AlertConfirmation";
 import { toast } from "sonner";
@@ -19,20 +19,30 @@ function StartInterview() {
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
   const [callStarted, setCallStarted] = useState(false);
   const [error, setError] = useState(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const router = useRouter();
+  const timerRef = useRef(null);
+  const feedbackGeneratedRef = useRef(false);
 
-  // Timer effect - only run when call is active
+  // Timer effect - more reliable implementation
   useEffect(() => {
-    let interval;
     if (isCallActive && callStarted) {
-      interval = setInterval(() => {
+      timerRef.current = setInterval(() => {
         setTimer(prev => prev + 1);
       }, 1000);
     } else {
-      if (interval) clearInterval(interval);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
+
     return () => {
-      if (interval) clearInterval(interval);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     };
   }, [isCallActive, callStarted]);
 
@@ -46,31 +56,43 @@ function StartInterview() {
 
   // Initialize Vapi
   useEffect(() => {
-    if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_VAPI_API_KEY) {
+    if (typeof window !== 'undefined') {
+      const apiKey = process.env.NEXT_PUBLIC_VAPI_API_KEY;
+      if (!apiKey) {
+        setError("Voice interface not configured. Please contact support.");
+        toast.error("Voice interface configuration missing");
+        return;
+      }
+
       try {
-        const vapiInstance = new Vapi(process.env.NEXT_PUBLIC_VAPI_API_KEY);
+        const vapiInstance = new Vapi(apiKey);
         setVapi(vapiInstance);
+        setConnectionStatus('ready');
       } catch (error) {
         console.error("Error initializing Vapi:", error);
-        setError("Failed to initialize voice interface. Please check your configuration.");
+        setError("Failed to initialize voice interface. Please refresh and try again.");
         toast.error("Voice interface initialization failed");
       }
-    } else {
-      setError("Voice interface not configured. Please check environment variables.");
     }
   }, []);
 
   // Start call when interview info and vapi are ready
   useEffect(() => {
-    if (interviewInfo && vapi && !callStarted && !error) {
-      startCall();
+    if (interviewInfo && vapi && !callStarted && !error && connectionStatus === 'ready') {
+      const timer = setTimeout(() => {
+        startCall();
+      }, 1000); // Small delay to ensure everything is ready
+
+      return () => clearTimeout(timer);
     }
-  }, [interviewInfo, vapi, callStarted, error]);
+  }, [interviewInfo, vapi, callStarted, error, connectionStatus]);
 
   const startCall = useCallback(() => {
     if (!vapi || !interviewInfo?.interviewData?.questionList || callStarted) return;
     
     try {
+      setConnectionStatus('connecting');
+      
       let questionList = "";
       interviewInfo.interviewData.questionList.forEach((item, index) => {
         questionList += `${index + 1}. ${item.question}\n`;
@@ -78,7 +100,7 @@ function StartInterview() {
 
       const assistantOptions = {
         name: "AI Recruiter",
-        firstMessage: `Hi ${interviewInfo?.userName}, how are you? Ready for your interview for the ${interviewInfo?.interviewData?.jobPosition} position? Let's begin!`,
+        firstMessage: `Hi ${interviewInfo?.userName}, welcome to your interview for the ${interviewInfo?.interviewData?.jobPosition} position. I'm your AI interviewer today. Are you ready to begin?`,
         transcriber: {
           provider: "deepgram",
           model: "nova-2",
@@ -94,29 +116,30 @@ function StartInterview() {
           messages: [
             {
               role: "system",
-              content: `You are an AI voice assistant conducting interviews for the position of ${interviewInfo?.interviewData?.jobPosition}.
+              content: `You are an AI voice assistant conducting a professional interview for the position of ${interviewInfo?.interviewData?.jobPosition}.
 
-Your job is to ask candidates the provided interview questions and assess their responses professionally.
+Your responsibilities:
+1. Conduct a structured interview using the provided questions
+2. Maintain a professional yet friendly tone
+3. Ask one question at a time and wait for complete responses
+4. Provide brief acknowledgments between questions
+5. Keep the interview focused and within the allocated time
 
-Begin the conversation with a friendly introduction, setting a relaxed yet professional tone.
-
-Ask one question at a time and wait for the candidate's response before proceeding. Keep the questions clear and concise. 
-
-Here are the interview questions to ask one by one:
+Interview Questions (ask these in order):
 ${questionList}
 
 Guidelines:
-- Be friendly, engaging, and professional
-- Keep responses short and natural, like a real conversation
-- If the candidate struggles, offer hints or rephrase the question
-- Provide brief, encouraging feedback after each answer
-- After all questions are asked, wrap up the interview smoothly
-- Keep the interview focused on the role and questions provided
-- End on a positive note thanking them for their time
+- Start with a warm greeting and brief introduction
+- Ask questions clearly and give candidates time to think
+- Provide brief positive feedback after each answer
+- If a candidate asks for clarification, rephrase the question
+- Keep your responses concise and professional
+- End the interview by thanking the candidate
 
 Duration: ${interviewInfo?.interviewData?.duration} minutes
+Interview Type: ${interviewInfo?.interviewData?.type?.join(', ') || 'General'}
 
-Remember to maintain a professional yet conversational tone throughout the interview.`,
+Remember: You are evaluating this candidate for a real position, so maintain professionalism throughout.`,
             },
           ],
         },
@@ -124,23 +147,35 @@ Remember to maintain a professional yet conversational tone throughout the inter
 
       vapi.start(assistantOptions);
       setCallStarted(true);
-      toast.success("Starting interview call...");
+      toast.success("Connecting to interview...");
     } catch (error) {
       console.error("Error starting call:", error);
-      setError("Failed to start interview call");
+      setError("Failed to start interview call. Please refresh and try again.");
+      setConnectionStatus('error');
       toast.error("Failed to start interview call");
     }
   }, [vapi, interviewInfo, callStarted]);
 
   const stopInterview = useCallback(async () => {
+    if (feedbackGeneratedRef.current) return; // Prevent multiple calls
+    
     try {
       setIsGeneratingFeedback(true);
+      feedbackGeneratedRef.current = true;
       
       // Stop the call first
       if (vapi && isCallActive) {
         vapi.stop();
         setIsCallActive(false);
         setCallStarted(false);
+        setConnectionStatus('disconnected');
+        
+        // Clear timer
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        
         toast.success("Interview ended successfully");
       }
 
@@ -148,8 +183,7 @@ Remember to maintain a professional yet conversational tone throughout the inter
       if (conversation && conversation.length > 0) {
         await GenerateFeedback();
       } else {
-        toast.info("No conversation data available for feedback");
-        // Redirect to dashboard after a short delay
+        toast.info("Interview ended. Redirecting to dashboard...");
         setTimeout(() => {
           router.push('/dashboard');
         }, 2000);
@@ -158,6 +192,8 @@ Remember to maintain a professional yet conversational tone throughout the inter
       console.error("Error stopping interview:", error);
       toast.error("Error ending interview");
       setIsGeneratingFeedback(false);
+      feedbackGeneratedRef.current = false;
+      
       // Still redirect to dashboard
       setTimeout(() => {
         router.push('/dashboard');
@@ -172,17 +208,18 @@ Remember to maintain a professional yet conversational tone throughout the inter
     const handleCallStart = () => {
       console.log("Call has started");
       setIsCallActive(true);
+      setConnectionStatus('connected');
       setTimer(0);
       toast.success("Interview call connected!");
     };
 
     const handleSpeechStart = () => {
-      console.log("Speech started");
+      console.log("AI speech started");
       setActiveUser(false);
     };
 
     const handleSpeechEnd = () => {
-      console.log("Speech has ended");
+      console.log("AI speech ended");
       setActiveUser(true);
     };
 
@@ -190,13 +227,21 @@ Remember to maintain a professional yet conversational tone throughout the inter
       console.log("Interview call has ended");
       setIsCallActive(false);
       setCallStarted(false);
+      setConnectionStatus('disconnected');
+      
+      // Clear timer
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      
       toast.info("Interview call ended");
       
       // Only generate feedback if not already generating
-      if (!isGeneratingFeedback && conversation && conversation.length > 0) {
+      if (!feedbackGeneratedRef.current && conversation && conversation.length > 0) {
+        feedbackGeneratedRef.current = true;
         GenerateFeedback();
-      } else if (!isGeneratingFeedback) {
-        // Redirect to dashboard after a short delay
+      } else if (!feedbackGeneratedRef.current) {
         setTimeout(() => {
           router.push('/dashboard');
         }, 2000);
@@ -215,6 +260,7 @@ Remember to maintain a professional yet conversational tone throughout the inter
       toast.error("Interview call error occurred");
       setIsCallActive(false);
       setCallStarted(false);
+      setConnectionStatus('error');
       setError("Voice interface error occurred");
     };
 
@@ -233,7 +279,7 @@ Remember to maintain a professional yet conversational tone throughout the inter
       vapi.off("message", handleMessage);
       vapi.off("error", handleError);
     };
-  }, [vapi, conversation, router, isGeneratingFeedback]);
+  }, [vapi, conversation, router]);
 
   const GenerateFeedback = async () => {
     if (!conversation || conversation.length === 0) {
@@ -262,22 +308,24 @@ Remember to maintain a professional yet conversational tone throughout the inter
           const feedbackData = JSON.parse(cleanedContent);
           console.log("Parsed feedback:", feedbackData);
           
-          // Store feedback in localStorage for now (in production, save to database)
+          // Store feedback in localStorage
           localStorage.setItem('interviewFeedback', JSON.stringify({
             feedback: feedbackData,
             interviewId: interviewInfo?.interviewData?.interviewId,
             candidateName: interviewInfo?.userName,
             candidateEmail: interviewInfo?.userEmail,
             jobPosition: interviewInfo?.interviewData?.jobPosition,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            duration: timer,
+            totalQuestions: interviewInfo?.interviewData?.questionList?.length || 0
           }));
           
           toast.success("Interview feedback generated successfully!");
           
-          // Redirect to feedback page instead of dashboard
+          // Redirect to feedback page
           setTimeout(() => {
             router.push('/feedback');
-          }, 2000);
+          }, 1500);
         } catch (parseError) {
           console.error("Error parsing feedback:", parseError);
           toast.error("Error processing feedback data");
@@ -297,9 +345,33 @@ Remember to maintain a professional yet conversational tone throughout the inter
     }
   };
 
+  const toggleMute = useCallback(() => {
+    if (vapi && isCallActive) {
+      try {
+        if (isMuted) {
+          vapi.setMuted(false);
+          setIsMuted(false);
+          toast.success("Microphone unmuted");
+        } else {
+          vapi.setMuted(true);
+          setIsMuted(true);
+          toast.success("Microphone muted");
+        }
+      } catch (error) {
+        console.error("Error toggling mute:", error);
+        toast.error("Failed to toggle microphone");
+      }
+    }
+  }, [vapi, isCallActive, isMuted]);
+
   // Cleanup on component unmount
   useEffect(() => {
     return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      
       if (vapi && isCallActive) {
         try {
           vapi.stop();
@@ -317,6 +389,17 @@ Remember to maintain a professional yet conversational tone throughout the inter
       router.push('/dashboard');
     }
   }, [interviewInfo, router]);
+
+  // Auto-end interview based on duration
+  useEffect(() => {
+    if (interviewInfo?.interviewData?.duration && timer > 0) {
+      const maxDuration = parseInt(interviewInfo.interviewData.duration) * 60; // Convert to seconds
+      if (timer >= maxDuration && isCallActive) {
+        toast.info("Interview time limit reached. Ending interview...");
+        stopInterview();
+      }
+    }
+  }, [timer, interviewInfo, isCallActive, stopInterview]);
 
   if (!interviewInfo) {
     return (
@@ -347,20 +430,53 @@ Remember to maintain a professional yet conversational tone throughout the inter
     );
   }
 
+  const maxDuration = parseInt(interviewInfo?.interviewData?.duration || 0) * 60;
+  const progressPercentage = maxDuration > 0 ? (timer / maxDuration) * 100 : 0;
+
   return (
-    <div className="p-20 lg:px-48 xl:px-56">
+    <div className="p-6 lg:px-12 xl:px-24">
+      {/* Header */}
       <div className="flex justify-between items-center mb-8">
-        <h2 className="font-bold text-xl">AI Interview Session</h2>
-        <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-md">
-          <Timer className="w-5 h-5 text-primary" />
-          <span className="font-mono text-lg font-semibold">
-            {formatTime(timer)}
-          </span>
-          {isCallActive && (
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse ml-2"></div>
-          )}
+        <div>
+          <h2 className="font-bold text-xl">AI Interview Session</h2>
+          <p className="text-gray-600">{interviewInfo?.interviewData?.jobPosition}</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-md">
+            <Timer className="w-5 h-5 text-primary" />
+            <span className="font-mono text-lg font-semibold">
+              {formatTime(timer)}
+            </span>
+            {maxDuration > 0 && (
+              <span className="text-sm text-gray-500">
+                / {formatTime(maxDuration)}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${
+              connectionStatus === 'connected' ? 'bg-green-500 animate-pulse' : 
+              connectionStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+              connectionStatus === 'error' ? 'bg-red-500' : 'bg-gray-400'
+            }`}></div>
+            <span className="text-sm font-medium capitalize">
+              {connectionStatus}
+            </span>
+          </div>
         </div>
       </div>
+
+      {/* Progress Bar */}
+      {maxDuration > 0 && (
+        <div className="mb-6">
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div 
+              className="bg-primary h-2 rounded-full transition-all duration-1000"
+              style={{ width: `${Math.min(progressPercentage, 100)}%` }}
+            ></div>
+          </div>
+        </div>
+      )}
 
       {/* Interview Status */}
       <div className="mb-6 p-4 bg-white rounded-lg shadow-md">
@@ -372,12 +488,9 @@ Remember to maintain a professional yet conversational tone throughout the inter
             <p className="text-gray-600">
               Candidate: {interviewInfo?.userName}
             </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${isCallActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-            <span className="text-sm font-medium">
-              {isCallActive ? 'Live' : callStarted ? 'Connecting...' : 'Disconnected'}
-            </span>
+            <p className="text-sm text-gray-500">
+              {interviewInfo?.interviewData?.questionList?.length || 0} questions • {interviewInfo?.interviewData?.duration} minutes
+            </p>
           </div>
         </div>
       </div>
@@ -399,7 +512,11 @@ Remember to maintain a professional yet conversational tone throughout the inter
           </div>
           <h3 className="font-semibold text-lg">AI Recruiter</h3>
           <p className="text-sm text-gray-600 text-center px-4">
-            {isCallActive ? 'Conducting interview...' : callStarted ? 'Connecting...' : 'Ready to start interview'}
+            {connectionStatus === 'connected' ? 
+              (!activeUser ? 'Speaking...' : 'Listening...') : 
+              connectionStatus === 'connecting' ? 'Connecting...' : 
+              'Ready to start interview'
+            }
           </p>
         </div>
 
@@ -415,19 +532,33 @@ Remember to maintain a professional yet conversational tone throughout the inter
           </div>
           <h3 className="font-semibold text-lg">{interviewInfo?.userName}</h3>
           <p className="text-sm text-gray-600 text-center px-4">
-            {isCallActive ? (activeUser ? 'Speaking...' : 'Listening...') : callStarted ? 'Connecting...' : 'Waiting to connect'}
+            {connectionStatus === 'connected' ? 
+              (activeUser ? 'Your turn to speak' : 'Listening to AI') : 
+              connectionStatus === 'connecting' ? 'Connecting...' : 
+              'Waiting to connect'
+            }
           </p>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="flex gap-5 items-center justify-center mt-8">
+      <div className="flex gap-3 items-center justify-center mt-8 flex-wrap">
         <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-md">
-          <Mic className={`w-5 h-5 ${isCallActive ? 'text-green-500' : 'text-gray-400'}`} />
+          <Mic className={`w-5 h-5 ${isCallActive && !isMuted ? 'text-green-500' : 'text-gray-400'}`} />
           <span className="text-sm font-medium">
-            {isCallActive ? 'Microphone Active' : 'Microphone Off'}
+            {isCallActive ? (isMuted ? 'Microphone Muted' : 'Microphone Active') : 'Microphone Off'}
           </span>
         </div>
+
+        {isCallActive && (
+          <button
+            onClick={toggleMute}
+            className="flex items-center gap-2 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg shadow-md transition-all duration-200"
+          >
+            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            {isMuted ? 'Unmute' : 'Mute'}
+          </button>
+        )}
         
         <AlertConfirmation stopInterview={stopInterview}>
           <button 
@@ -447,7 +578,7 @@ Remember to maintain a professional yet conversational tone throughout the inter
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
             <div>
               <p className="font-medium text-blue-800">Generating Interview Feedback</p>
-              <p className="text-sm text-blue-600">Please wait while we analyze the interview...</p>
+              <p className="text-sm text-blue-600">Please wait while we analyze the interview and prepare your feedback...</p>
             </div>
           </div>
         </div>
@@ -455,11 +586,12 @@ Remember to maintain a professional yet conversational tone throughout the inter
 
       {/* Instructions */}
       <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-        <h4 className="font-semibold text-gray-800 mb-2">Interview Instructions:</h4>
+        <h4 className="font-semibold text-gray-800 mb-2">Interview Guidelines:</h4>
         <ul className="text-sm text-gray-600 space-y-1">
           <li>• Speak clearly and at a normal pace</li>
           <li>• Wait for the AI to finish asking questions before responding</li>
           <li>• Take your time to think before answering</li>
+          <li>• Use the mute button if you need a moment</li>
           <li>• Click "End Interview" when you're ready to finish</li>
           <li>• Your interview will be automatically saved and feedback generated</li>
         </ul>

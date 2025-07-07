@@ -2,37 +2,46 @@ import { QUESTIONS_PROMPT } from "@/services/Constants";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
-export async function POST(req){
-    
-    const {jobPosition, JobDescription, duration, type} = await req.json();
+export async function POST(req) {
+  try {
+    const { jobPosition, jobDescription, duration, type } = await req.json();
 
-    try{
+    // Validate required fields
+    if (!jobPosition || !jobDescription || !duration || !type) {
+      return NextResponse.json(
+        { error: "Missing required fields" }, 
+        { status: 400 }
+      );
+    }
 
     const FINAL_PROMPT = QUESTIONS_PROMPT.replace("{{{jobTitle}}}", jobPosition)
-    .replace("{{{jobDescription}}}", JobDescription)
-    .replace("{{{interviewType}}}", type)
-    .replace("{{{duration}}}", duration);
+      .replace("{{{jobDescription}}}", jobDescription)
+      .replace("{{{interviewType}}}", Array.isArray(type) ? type.join(', ') : type)
+      .replace("{{{duration}}}", duration);
 
-    console.log(FINAL_PROMPT)
+    console.log("Generating questions for:", jobPosition);
     
     const openai = new OpenAI({
-        baseURL: "https://openrouter.ai/api/v1",
-        apiKey: process.env.OPENROUTER_API_KEY,
-        
-      })
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: process.env.OPENROUTER_API_KEY,
+    });
 
-      const completion = await openai.chat.completions.create({
-        model: "google/gemini-2.0-flash-exp:free",
-        messages: [
-          { role: "user", content: FINAL_PROMPT }
-        ],
-      })
+    const completion = await openai.chat.completions.create({
+      model: "google/gemini-2.0-flash-exp:free",
+      messages: [
+        { role: "user", content: FINAL_PROMPT }
+      ],
+      temperature: 0.8,
+      max_tokens: 2000,
+    });
 
-      console.log(completion.choices[0].message)
-      return NextResponse.json(completion.choices[0].message)
-    }
-    catch(error){
-        console.log(error)
-        return NextResponse.json({error})
-    }
+    console.log("Questions generated successfully");
+    return NextResponse.json(completion.choices[0].message);
+  } catch (error) {
+    console.error("Error generating questions:", error);
+    return NextResponse.json(
+      { error: "Failed to generate questions", details: error.message }, 
+      { status: 500 }
+    );
+  }
 }

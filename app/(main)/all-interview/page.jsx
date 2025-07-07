@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Calendar, Clock, User, Video, Search, Filter, Eye, Trash2, Plus } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, User, Video, Search, Filter, Eye, Trash2, Plus, Share, Download } from 'lucide-react'
 import { supabase } from '@/services/supabaseClient'
 import { useUser } from '@/app/Provider'
 import { toast } from 'sonner'
@@ -126,6 +126,51 @@ function AllInterviews() {
         }
     };
 
+    const shareInterview = async (interview) => {
+        const url = `${window.location.origin}/interview/${interview.interviewId}`;
+        const shareData = {
+            title: `Interview - ${interview.jobPosition}`,
+            text: `You're invited to an AI interview for ${interview.jobPosition}`,
+            url: url
+        };
+
+        if (navigator.share) {
+            try {
+                await navigator.share(shareData);
+                toast.success('Interview shared successfully');
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    copyInterviewLink(interview.interviewId);
+                }
+            }
+        } else {
+            copyInterviewLink(interview.interviewId);
+        }
+    };
+
+    const exportInterviews = () => {
+        const exportData = filteredInterviews.map(interview => ({
+            jobPosition: interview.jobPosition,
+            duration: interview.duration,
+            type: interview.type?.join(', '),
+            questionsCount: interview.questionList?.length || 0,
+            createdAt: interview.created_at,
+            interviewLink: `${window.location.origin}/interview/${interview.interviewId}`
+        }));
+
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+        
+        const exportFileDefaultName = `interviews-export-${new Date().toISOString().split('T')[0]}.json`;
+        
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+        
+        toast.success('Interviews exported successfully');
+    };
+
     const formatDate = (dateString) => {
         return new Date(dateString).toLocaleDateString('en-US', {
             year: 'numeric',
@@ -175,12 +220,20 @@ function AllInterviews() {
                         <p className="text-gray-600">Manage and view all your created interviews</p>
                     </div>
                 </div>
-                <Link href="/dashboard/create-interview">
-                    <Button>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Create New Interview
-                    </Button>
-                </Link>
+                <div className="flex gap-2">
+                    {filteredInterviews.length > 0 && (
+                        <Button variant="outline" onClick={exportInterviews}>
+                            <Download className="w-4 h-4 mr-2" />
+                            Export
+                        </Button>
+                    )}
+                    <Link href="/dashboard/create-interview">
+                        <Button>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Create New Interview
+                        </Button>
+                    </Link>
+                </div>
             </div>
 
             {/* Filters and Search */}
@@ -235,6 +288,18 @@ function AllInterviews() {
                 <p className="text-gray-600">
                     Showing {filteredInterviews.length} of {interviews.length} interviews
                 </p>
+                {searchTerm || filterType !== 'all' ? (
+                    <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                            setSearchTerm('');
+                            setFilterType('all');
+                        }}
+                    >
+                        Clear Filters
+                    </Button>
+                ) : null}
             </div>
 
             {/* Interviews List */}
@@ -271,11 +336,16 @@ function AllInterviews() {
                                         <div className="flex items-center gap-3 mb-3">
                                             <h3 className="text-xl font-semibold">{interview.jobPosition}</h3>
                                             <div className="flex gap-1">
-                                                {interview.type?.map((type, index) => (
+                                                {interview.type?.slice(0, 3).map((type, index) => (
                                                     <Badge key={index} variant="secondary" className="text-xs">
                                                         {type}
                                                     </Badge>
                                                 ))}
+                                                {interview.type?.length > 3 && (
+                                                    <Badge variant="secondary" className="text-xs">
+                                                        +{interview.type.length - 3}
+                                                    </Badge>
+                                                )}
                                             </div>
                                         </div>
                                         
@@ -298,18 +368,18 @@ function AllInterviews() {
                                             {interview.jobDescription}
                                         </p>
 
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                onClick={() => copyInterviewLink(interview.interviewId)}
+                                                onClick={() => shareInterview(interview)}
                                             >
-                                                <Eye className="w-4 h-4 mr-1" />
-                                                Share Link
+                                                <Share className="w-4 h-4 mr-1" />
+                                                Share
                                             </Button>
                                             <Link href={`/interview/${interview.interviewId}`}>
                                                 <Button size="sm">
-                                                    <Video className="w-4 h-4 mr-1" />
+                                                    <Eye className="w-4 h-4 mr-1" />
                                                     Preview
                                                 </Button>
                                             </Link>

@@ -147,19 +147,19 @@ Based on the interview conversation above, provide a comprehensive and professio
 **Instructions:**
 
 1. **Rating Criteria** (Rate each on a scale of 1-10):
-   - **Technical Skills**: Knowledge of relevant technologies, frameworks, and concepts
-   - **Communication**: Clarity of expression, articulation, and professional communication
-   - **Problem Solving**: Analytical thinking, approach to challenges, and logical reasoning
-   - **Experience**: Relevant background, practical knowledge, and past achievements
+   - **technicalSkills**: Knowledge of relevant technologies, frameworks, and concepts
+   - **communication**: Clarity of expression, articulation, and professional communication
+   - **problemSolving**: Analytical thinking, approach to challenges, and logical reasoning
+   - **experience**: Relevant background, practical knowledge, and past achievements
 
 2. **Summary Requirements**:
-   - Provide a 3-line summary highlighting key strengths and areas for improvement
+   - Provide a comprehensive summary highlighting key strengths and areas for improvement
    - Be specific about what the candidate did well and what needs development
-   - Focus on actionable insights
+   - Focus on actionable insights and professional growth opportunities
 
 3. **Recommendation**:
    - Provide a clear "Hire" or "Do Not Hire" recommendation
-   - Include a brief justification for your recommendation
+   - Include a detailed justification for your recommendation
    - Consider the overall performance and role requirements
 
 **Response Format:**
@@ -167,17 +167,15 @@ Return your assessment as a valid JSON object with the following structure:
 
 \`\`\`json
 {
-  "feedback": {
-    "rating": {
-      "technicalSkills": 7,
-      "communication": 8,
-      "problemSolving": 6,
-      "experience": 7
-    },
-    "summary": "The candidate demonstrated strong communication skills and relevant experience in the field. They showed good understanding of core concepts but struggled with some advanced technical questions. Overall, they presented themselves professionally and showed enthusiasm for the role.",
-    "Recommendation": "Hire",
-    "RecommendationMsg": "Recommended for hire based on strong foundational skills and good cultural fit. Consider providing additional technical training in advanced areas."
-  }
+  "rating": {
+    "technicalSkills": 7,
+    "communication": 8,
+    "problemSolving": 6,
+    "experience": 7
+  },
+  "summary": "The candidate demonstrated strong communication skills and relevant experience in the field. They showed good understanding of core concepts but struggled with some advanced technical questions. Overall, they presented themselves professionally and showed enthusiasm for the role.",
+  "Recommendation": "Hire",
+  "RecommendationMsg": "Recommended for hire based on strong foundational skills and good cultural fit. Consider providing additional technical training in advanced areas."
 }
 \`\`\`
 
@@ -187,5 +185,6 @@ Return your assessment as a valid JSON object with the following structure:
 - Provide constructive feedback that helps the candidate improve
 - Base ratings on actual performance demonstrated in the conversation
 - Ensure recommendations align with the overall assessment
+- Focus on specific examples from the conversation when possible
 
 Only output the structured JSON. Do not include any commentary or explanations outside the JSON structure.`;

@@ -2,7 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Camera, Plus, Video, Calendar, Clock, User, Eye } from 'lucide-react';
+import { Plus, Video, Calendar, Clock, User, Eye, Trash2, Share } from 'lucide-react';
 import React, { useState, useEffect } from 'react'
 import { supabase } from '@/services/supabaseClient';
 import { useUser } from '@/app/Provider';
@@ -44,6 +44,30 @@ function LatestInterviewsList() {
         }
     };
 
+    const deleteInterview = async (interviewId) => {
+        if (!confirm('Are you sure you want to delete this interview? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const { error } = await supabase
+                .from('Interviews')
+                .delete()
+                .eq('interviewId', interviewId);
+
+            if (error) {
+                console.error('Error deleting interview:', error);
+                toast.error('Failed to delete interview');
+            } else {
+                toast.success('Interview deleted successfully');
+                setInterviewList(prev => prev.filter(interview => interview.interviewId !== interviewId));
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            toast.error('Failed to delete interview');
+        }
+    };
+
     const formatDate = (dateString) => {
         return new Date(dateString).toLocaleDateString('en-US', {
             year: 'numeric',
@@ -67,10 +91,31 @@ function LatestInterviewsList() {
         }
     };
 
+    const shareInterview = async (interview) => {
+        const shareData = {
+            title: `Interview - ${interview.jobPosition}`,
+            text: `You're invited to an AI interview for ${interview.jobPosition}`,
+            url: getInterviewUrl(interview.interviewId)
+        };
+
+        if (navigator.share) {
+            try {
+                await navigator.share(shareData);
+                toast.success('Interview shared successfully');
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    copyInterviewLink(interview.interviewId);
+                }
+            }
+        } else {
+            copyInterviewLink(interview.interviewId);
+        }
+    };
+
     if (loading) {
         return (
             <div className='my-5'>
-                <h2 className='font-bold text-2xl mb-4'>Previously Created Interviews</h2>
+                <h2 className='font-bold text-2xl mb-4'>Recently Created Interviews</h2>
                 <div className='grid gap-4'>
                     {[1, 2, 3].map((i) => (
                         <div key={i} className='p-4 bg-white border border-gray-200 rounded-lg animate-pulse'>
@@ -86,11 +131,11 @@ function LatestInterviewsList() {
     return (
         <div className='my-5'>
             <div className='flex justify-between items-center mb-4'>
-                <h2 className='font-bold text-2xl'>Previously Created Interviews</h2>
+                <h2 className='font-bold text-2xl'>Recently Created Interviews</h2>
                 {interviewList.length > 0 && (
                     <Link href="/all-interview">
                         <Button variant="outline" size="sm">
-                            View All
+                            View All ({interviewList.length > 5 ? '5+' : interviewList.length})
                         </Button>
                     </Link>
                 )}
@@ -125,9 +170,18 @@ function LatestInterviewsList() {
                                     <div className='flex-1'>
                                         <div className='flex items-center gap-2 mb-2'>
                                             <h3 className='font-semibold text-lg'>{interview.jobPosition}</h3>
-                                            <Badge variant="secondary" className='text-xs'>
-                                                {interview.type?.join(', ') || 'General'}
-                                            </Badge>
+                                            <div className='flex gap-1'>
+                                                {interview.type?.slice(0, 2).map((type, idx) => (
+                                                    <Badge key={idx} variant="secondary" className='text-xs'>
+                                                        {type}
+                                                    </Badge>
+                                                ))}
+                                                {interview.type?.length > 2 && (
+                                                    <Badge variant="secondary" className='text-xs'>
+                                                        +{interview.type.length - 2}
+                                                    </Badge>
+                                                )}
+                                            </div>
                                         </div>
                                         
                                         <div className='flex items-center gap-4 text-sm text-gray-600 mb-3'>
@@ -146,25 +200,35 @@ function LatestInterviewsList() {
                                         </div>
 
                                         <p className='text-sm text-gray-700 line-clamp-2'>
-                                            {interview.jobDescription?.substring(0, 150)}...
+                                            {interview.jobDescription?.substring(0, 150)}
+                                            {interview.jobDescription?.length > 150 ? '...' : ''}
                                         </p>
                                     </div>
 
                                     <div className='flex flex-col gap-2 ml-4'>
                                         <Button
                                             size="sm"
-                                            onClick={() => copyInterviewLink(interview.interviewId)}
+                                            onClick={() => shareInterview(interview)}
                                             variant="outline"
                                         >
-                                            <Eye className='w-4 h-4 mr-1' />
+                                            <Share className='w-4 h-4 mr-1' />
                                             Share
                                         </Button>
                                         <Link href={`/interview/${interview.interviewId}`}>
                                             <Button size="sm" className='w-full'>
-                                                <Video className='w-4 h-4 mr-1' />
+                                                <Eye className='w-4 h-4 mr-1' />
                                                 Preview
                                             </Button>
                                         </Link>
+                                        <Button
+                                            size="sm"
+                                            variant="destructive"
+                                            onClick={() => deleteInterview(interview.interviewId)}
+                                            className="w-full"
+                                        >
+                                            <Trash2 className='w-4 h-4 mr-1' />
+                                            Delete
+                                        </Button>
                                     </div>
                                 </div>
                             </CardContent>
