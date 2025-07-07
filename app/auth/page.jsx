@@ -11,14 +11,9 @@ import { toast } from 'sonner'
 
 function AuthPage() {
     const [loading, setLoading] = useState(false);
-    const [mounted, setMounted] = useState(false);
-    const [error, setError] = useState(null);
     const router = useRouter();
 
     useEffect(() => {
-        setMounted(true);
-        checkUser();
-        
         // Handle auth callback
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
@@ -34,27 +29,8 @@ function AuthPage() {
         return () => subscription.unsubscribe();
     }, [router]);
 
-    const checkUser = async () => {
-        try {
-            const { data: { user }, error } = await supabase.auth.getUser();
-            if (error) {
-                console.error("Error checking user:", error);
-                setError(error.message);
-                return;
-            }
-            
-            if (mounted && user) {
-                router.push('/dashboard');
-            }
-        } catch (error) {
-            console.error("Error checking user:", error);
-            setError(error.message);
-        }
-    };
-
     const signInWithGoogle = async () => {
         setLoading(true);
-        setError(null);
         
         try {
             const { data, error } = await supabase.auth.signInWithOAuth({
@@ -70,28 +46,17 @@ function AuthPage() {
 
             if (error) {
                 console.error('OAuth Error:', error);
-                setError(error.message);
                 toast.error(`Authentication failed: ${error.message}`);
             } else {
                 toast.info('Redirecting to Google...');
             }
         } catch (error) {
             console.error("Error signing in:", error);
-            setError(error.message);
             toast.error(`Sign in failed: ${error.message}`);
         } finally {
             setLoading(false);
         }
     };
-
-    // Don't render until mounted to prevent hydration mismatch
-    if (!mounted) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-50">
-                <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
 
     return (
         <div className='min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 flex flex-col'>
@@ -128,19 +93,6 @@ function AuthPage() {
                     </CardHeader>
                     
                     <CardContent className='space-y-6'>
-                        {error && (
-                            <div className='bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3'>
-                                <AlertCircle className='w-5 h-5 text-red-500 mt-0.5 flex-shrink-0' />
-                                <div>
-                                    <h4 className='text-sm font-medium text-red-800'>Authentication Error</h4>
-                                    <p className='text-sm text-red-700 mt-1'>{error}</p>
-                                    <p className='text-xs text-red-600 mt-2'>
-                                        Please make sure your Supabase project is properly configured with Google OAuth.
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
                         <div className='space-y-4'>
                             <Button 
                                 onClick={signInWithGoogle} 
