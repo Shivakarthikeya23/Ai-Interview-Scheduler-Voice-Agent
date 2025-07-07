@@ -37,14 +37,14 @@ export default function LandingPage() {
 
   const checkUser = async () => {
     try {
-      const { data: { user }, error } = await supabase.auth.getUser();
+      const { data: { session }, error } = await supabase.auth.getSession();
       if (error) {
         console.error("Error checking user:", error);
       } else {
-        setUser(user);
+        setUser(session?.user || null);
         
         // Only redirect if mounted and user exists
-        if (mounted && user) {
+        if (mounted && session?.user) {
           router.push('/dashboard');
         }
       }
@@ -60,7 +60,7 @@ export default function LandingPage() {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: `${window.location.origin}/auth/callback`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',

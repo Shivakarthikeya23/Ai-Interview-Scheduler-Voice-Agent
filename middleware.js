@@ -5,23 +5,39 @@ export async function middleware(req) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
 
-  // If user is not signed in and the current path is protected, redirect to auth
-  if (!user && req.nextUrl.pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/auth', req.url))
+    // If user is not signed in and trying to access protected routes, redirect to auth
+    if (!session && req.nextUrl.pathname.startsWith('/dashboard')) {
+      return NextResponse.redirect(new URL('/auth', req.url))
+    }
+
+    // If user is signed in and trying to access auth page, redirect to dashboard
+    if (session && req.nextUrl.pathname === '/auth') {
+      return NextResponse.redirect(new URL('/dashboard', req.url))
+    }
+
+    return res
+  } catch (error) {
+    // If there's an error with auth, allow the request to continue
+    console.error('Middleware auth error:', error)
+    return res
   }
-
-  // If user is signed in and the current path is auth or landing, redirect to dashboard
-  if (user && (req.nextUrl.pathname === '/auth' || req.nextUrl.pathname === '/')) {
-    return NextResponse.redirect(new URL('/dashboard', req.url))
-  }
-
-  return res
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - interview (public interview pages)
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico|interview).*)',
+  ],
 }

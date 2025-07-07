@@ -14,19 +14,15 @@ function AuthPage() {
     const router = useRouter();
 
     useEffect(() => {
-        // Handle auth callback
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (event, session) => {
-                if (event === 'SIGNED_IN' && session) {
-                    toast.success('Successfully signed in!');
-                    router.push('/dashboard');
-                } else if (event === 'SIGNED_OUT') {
-                    toast.info('Signed out successfully');
-                }
+        // Check if user is already authenticated
+        const checkAuth = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                router.push('/dashboard');
             }
-        );
-
-        return () => subscription.unsubscribe();
+        };
+        
+        checkAuth();
     }, [router]);
 
     const signInWithGoogle = async () => {
@@ -36,7 +32,7 @@ function AuthPage() {
             const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: `${window.location.origin}/dashboard`,
+                    redirectTo: `${window.location.origin}/auth/callback`,
                     queryParams: {
                         access_type: 'offline',
                         prompt: 'consent',

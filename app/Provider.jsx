@@ -15,14 +15,16 @@ function Provider({ children }) {
   const CreateNewUser = async () => {
     try {
       const {
-        data: { user: authUser },
+        data: { session },
         error: authError,
-      } = await supabase.auth.getUser();
+      } = await supabase.auth.getSession();
 
-      if (authError || !authUser) {
+      if (authError || !session?.user) {
         console.log("No authenticated user or error:", authError?.message);
         return;
       }
+
+      const authUser = session.user;
 
       const { data: existingUsers, error: selectError } = await supabase
         .from("Users")
