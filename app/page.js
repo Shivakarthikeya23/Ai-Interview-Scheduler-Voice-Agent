@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Logo from "@/components/Logo";
-import { ArrowRight, CheckCircle, Clock, Users, Zap, Star, Shield, Target } from "lucide-react";
+import { ArrowRight, CheckCircle, Clock, Users, Zap, Star, Shield } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/services/supabaseClient";
@@ -44,8 +44,9 @@ export default function LandingPage() {
         setUser(session?.user || null);
         
         // Only redirect if mounted and user exists
-        if (mounted && session?.user) {
+        if (session?.user) {
           router.push('/dashboard');
+          return;
         }
       }
     } catch (error) {
@@ -60,19 +61,13 @@ export default function LandingPage() {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
+          redirectTo: `${window.location.origin}/dashboard`,
         }
       });
 
       if (error) {
         console.error('OAuth Error:', error);
         toast.error(`Authentication failed: ${error.message}`);
-      } else {
-        toast.info('Redirecting to Google...');
       }
     } catch (error) {
       console.error("Error signing in:", error);

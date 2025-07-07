@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Logo from '@/components/Logo'
 import { supabase } from '@/services/supabaseClient'
-import { ArrowLeft, Chrome, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Chrome } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React, { useEffect, useState } from 'react'
@@ -23,6 +23,19 @@ function AuthPage() {
         };
         
         checkAuth();
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            async (event, session) => {
+                console.log('Auth event:', event, session);
+                if (event === 'SIGNED_IN' && session) {
+                    toast.success('Successfully signed in!');
+                    router.push('/dashboard');
+                }
+            }
+        );
+
+        return () => subscription.unsubscribe();
     }, [router]);
 
     const signInWithGoogle = async () => {
@@ -32,19 +45,13 @@ function AuthPage() {
             const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: `${window.location.origin}/auth/callback`,
-                    queryParams: {
-                        access_type: 'offline',
-                        prompt: 'consent',
-                    },
+                    redirectTo: `${window.location.origin}/dashboard`,
                 }
             });
 
             if (error) {
                 console.error('OAuth Error:', error);
                 toast.error(`Authentication failed: ${error.message}`);
-            } else {
-                toast.info('Redirecting to Google...');
             }
         } catch (error) {
             console.error("Error signing in:", error);
@@ -129,13 +136,6 @@ function AuthPage() {
                                     Privacy Policy
                                 </Link>
                             </p>
-                        </div>
-
-                        {/* Debug Info (remove in production) */}
-                        <div className='text-xs text-gray-400 text-center space-y-1'>
-                            <p>Environment: {process.env.NODE_ENV}</p>
-                            <p>Supabase URL: {process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Configured' : 'Missing'}</p>
-                            <p>Current URL: {typeof window !== 'undefined' ? window.location.origin : 'Server'}</p>
                         </div>
                     </CardContent>
                 </Card>
