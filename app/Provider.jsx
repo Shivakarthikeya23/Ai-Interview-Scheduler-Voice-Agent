@@ -5,12 +5,14 @@ import { UserDetailContext } from "@/context/UserDetailContext";
 
 function Provider({ children }) {
   const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     CreateNewUser();
   }, []);
 
   const CreateNewUser = async () => {
+    setIsLoading(true);
     const {
       data: { user: authUser },
       error: authError,
@@ -18,6 +20,7 @@ function Provider({ children }) {
 
     if (authError || !authUser) {
       console.log("No authenticated user or error:", authError?.message);
+      setIsLoading(false);
       return;
     }
 
@@ -30,6 +33,7 @@ function Provider({ children }) {
 
     if (selectError) {
       console.error("Error checking for existing user:", selectError.message);
+      setIsLoading(false);
       return;
     }
 
@@ -48,6 +52,7 @@ function Provider({ children }) {
 
       if (insertError) {
         console.error("Error creating user:", insertError.message);
+        setIsLoading(false);
         return;
       }
 
@@ -56,7 +61,17 @@ function Provider({ children }) {
     } else {
       setUser(existingUsers[0]);
     }
+    setIsLoading(false);
   };
+
+  // Prevent hydration mismatch by not rendering until client-side
+  if (isLoading) {
+    return (
+      <UserDetailContext.Provider value={{ user: null, setUser }}>
+        {children}
+      </UserDetailContext.Provider>
+    );
+  }
 
   return (
     <UserDetailContext.Provider value={{ user, setUser }}>

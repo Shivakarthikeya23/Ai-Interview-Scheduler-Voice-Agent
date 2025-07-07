@@ -6,18 +6,31 @@ import React, { useContext, useEffect } from "react";
 import Vapi from "@vapi-ai/web";
 import AlertConfirmation from "./_components/AlertConfirmation";
 import { toast } from "sonner";
+import axios from "axios";
 
 function StartInterview() {
   const { interviewInfo, setInterviewInfo } = useContext(InterviewDataContext);
-  const vapi = new Vapi(process.env.NEXT_PUBLIC_VAPI_API_KEY);
+  const [vapi, setVapi] = React.useState(null);
   const [activeUser, setActiveUser] = React.useState(false);
   const [conversation, setConversation] = React.useState();
 
   useEffect(() => {
-    interviewInfo && startCall();
-  }, [interviewInfo]);
+    // Initialize Vapi only on client side
+    if (typeof window !== 'undefined') {
+      const vapiInstance = new Vapi(process.env.NEXT_PUBLIC_VAPI_API_KEY);
+      setVapi(vapiInstance);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (interviewInfo && vapi) {
+      startCall();
+    }
+  }, [interviewInfo, vapi]);
 
   const startCall = () => {
+    if (!vapi) return;
+    
     let questionList;
     interviewInfo?.interviewData?.questionList.forEach((item, index) => {
       questionList = item?.question + "," + questionList;
@@ -80,34 +93,54 @@ Key Guidelines:
   };
 
   const stopInterview = () => {
-    vapi.stop();
+    if (vapi) {
+      vapi.stop();
+    }
   };
 
-  vapi.on("call-start", () => {
-    console.log("Call has started");
-    toast("Call has connected..");
-  });
+  useEffect(() => {
+    if (!vapi) return;
 
-  vapi.on("speech-start", () => {
-    console.log("Speech started");
-    setActiveUser(false);
-  });
+    const handleCallStart = () => {
+      console.log("Call has started");
+      toast("Call has connected..");
+    };
 
-  vapi.on("speech-end", () => {
-    console.log("Speech has ended");
-    setActiveUser(true);
-  });
+    const handleSpeechStart = () => {
+      console.log("Speech started");
+      setActiveUser(false);
+    };
 
-  vapi.on("call-end", () => {
-    console.log("Interview call has ended");
-    toast("Interview ended");
-    GenerateFeedback();
-  });
+    const handleSpeechEnd = () => {
+      console.log("Speech has ended");
+      setActiveUser(true);
+    };
 
-  vapi.on("message", (message) => {
-    console.log("Message", message);
-    setConversation(message?.conversation);
-  });
+    const handleCallEnd = () => {
+      console.log("Interview call has ended");
+      toast("Interview ended");
+      GenerateFeedback();
+    };
+
+    const handleMessage = (message) => {
+      console.log("Message", message);
+      setConversation(message?.conversation);
+    };
+
+    vapi.on("call-start", handleCallStart);
+    vapi.on("speech-start", handleSpeechStart);
+    vapi.on("speech-end", handleSpeechEnd);
+    vapi.on("call-end", handleCallEnd);
+    vapi.on("message", handleMessage);
+
+    return () => {
+      vapi.off("call-start", handleCallStart);
+      vapi.off("speech-start", handleSpeechStart);
+      vapi.off("speech-end", handleSpeechEnd);
+      vapi.off("call-end", handleCallEnd);
+      vapi.off("message", handleMessage);
+    };
+  }, [vapi]);
 
   const GenerateFeedback = async () => {
     const result = await axios.post("/api/ai-feedback", {
