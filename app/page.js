@@ -11,34 +11,46 @@ import { useRouter } from "next/navigation";
 export default function LandingPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
+    setMounted(true);
     checkUser();
   }, []);
 
   const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
-    setLoading(false);
-    
-    // Redirect to dashboard if user is already logged in
-    if (user) {
-      router.push('/dashboard');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      
+      // Only redirect if mounted and user exists
+      if (mounted && user) {
+        router.push('/dashboard');
+      }
+    } catch (error) {
+      console.error("Error checking user:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`
-      }
-    });
-    if (error) console.log('Error signing in with Google:', error.message);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`
+        }
+      });
+      if (error) console.log('Error signing in with Google:', error.message);
+    } catch (error) {
+      console.error("Error signing in:", error);
+    }
   };
 
-  if (loading) {
+  // Don't render until mounted to prevent hydration mismatch
+  if (!mounted || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-50">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>

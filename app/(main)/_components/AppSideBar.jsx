@@ -18,46 +18,12 @@ import { useEffect, useState } from "react"
 import Logo from "@/components/Logo"
   
   export function AppSidebar() {
-
     const path = usePathname();
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
       setMounted(true);
     }, []);
-
-    console.log(path);
-
-    // Prevent hydration mismatch
-    if (!mounted) {
-      return (
-        <Sidebar>
-          <SidebarHeader className='flex items-center mt-5 space-y-4'>
-            <Logo />
-            <Button className='w-full mt-5 p-5'> <Plus /> Create new interview </Button>
-          </SidebarHeader>
-          <SidebarContent>
-            <SidebarGroup>
-              <SidebarContent>
-                <SidebarMenu>
-                  {SideBarOptions.map((option, index) => (
-                    <SidebarMenuItem key={index} className='p-1'>
-                      <SidebarMenuButton asChild className='p-5 text-[16px]'>
-                        <Link href={option.path}>    
-                          <option.icon />
-                          <span className='text-[16px]'>{option.name}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem> 
-                  ))}
-                </SidebarMenu>
-              </SidebarContent>
-            </SidebarGroup>
-          </SidebarContent>
-          <SidebarFooter />
-        </Sidebar>
-      );
-    }
 
     return (
       <Sidebar>
@@ -71,10 +37,10 @@ import Logo from "@/components/Logo"
                 <SidebarMenu>
                     {SideBarOptions.map((option, index) => (
                         <SidebarMenuItem key={index} className='p-1'>
-                            <SidebarMenuButton asChild className={`p-5 text-[16px] ${path == option.path && 'bg-green-50'}`}>
+                            <SidebarMenuButton asChild className={`p-5 text-[16px] ${mounted && path == option.path ? 'bg-green-50' : ''}`}>
                                 <Link href={option.path}>    
-                                <option.icon className={`${path == option.path && 'text-primary'}`}/>
-                                <span className={`text-[16px] ${path == option.path && 'text-primary font-medium'}`}>{option.name}</span>
+                                <option.icon className={`${mounted && path == option.path ? 'text-primary' : ''}`}/>
+                                <span className={`text-[16px] ${mounted && path == option.path ? 'text-primary font-medium' : ''}`}>{option.name}</span>
                                 </Link>
  
                             </SidebarMenuButton>
@@ -89,4 +55,3 @@ import Logo from "@/components/Logo"
       </Sidebar>
     )
   }
-  
