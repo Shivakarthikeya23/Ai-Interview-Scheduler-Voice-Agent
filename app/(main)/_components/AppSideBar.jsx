@@ -15,6 +15,7 @@ import { Plus } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
+import Logo from "@/components/Logo"
   
   export function AppSidebar() {
 
@@ -31,8 +32,8 @@ import { useEffect, useState } from "react"
     if (!mounted) {
       return (
         <Sidebar>
-          <SidebarHeader className='flex items-center mt-5'>
-            <h1 className="text-2xl">AI Recruiter</h1>
+          <SidebarHeader className='flex items-center mt-5 space-y-4'>
+            <Logo />
             <Button className='w-full mt-5 p-5'> <Plus /> Create new interview </Button>
           </SidebarHeader>
           <SidebarContent>
@@ -60,7 +61,8 @@ import { useEffect, useState } from "react"
 
     return (
       <Sidebar>
-        <SidebarHeader className='flex items-center mt-5'><h1 className="text-2xl">AI Recruiter</h1>
+        <SidebarHeader className='flex items-center mt-5 space-y-4'>
+        <Logo />
         <Button className='w-full mt-5 p-5'> <Plus /> Create new interview </Button>
         </SidebarHeader>
         <SidebarContent>
