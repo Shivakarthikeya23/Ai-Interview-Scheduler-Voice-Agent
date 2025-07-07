@@ -12,6 +12,7 @@ import {
   User2Icon,
   Users,
   WalletCards,
+  MessageSquare,
 } from "lucide-react";
 
 export const SideBarOptions = [
@@ -21,19 +22,14 @@ export const SideBarOptions = [
     path: "/dashboard",
   },
   {
-    name: "Scheduled Interview",
-    icon: Calendar,
-    path: "/scheduled-interview",
-  },
-  {
-    name: "All Interview",
+    name: "All Interviews",
     icon: List,
     path: "/all-interview",
   },
   {
-    name: "Billing",
-    icon: WalletCards,
-    path: "/billing",
+    name: "Feedback",
+    icon: MessageSquare,
+    path: "/feedback",
   },
   {
     name: "Settings",
@@ -69,7 +65,7 @@ export const InterviewType = [
   },
 ];
 
-export const QUESTIONS_PROMPT = `You are an expert technical interviewer.
+export const QUESTIONS_PROMPT = `You are an expert technical interviewer with years of experience in conducting professional interviews.
 
 ---
 
@@ -84,25 +80,35 @@ export const QUESTIONS_PROMPT = `You are an expert technical interviewer.
 
 **Task:**
 
-Based on the above inputs, generate a well-structured, insightful, and appropriately challenging set of interview questions tailored to the candidate and context.
+Based on the above inputs, generate a well-structured, insightful, and appropriately challenging set of interview questions tailored to the candidate and context. The questions should be professional, relevant, and designed to assess the candidate's suitability for the role.
 
 ---
 
 **Instructions:**
 
-1. Tailor the **number and complexity** of questions to fit the interview duration.
-2. Match the tone and depth based on the **interview type** (e.g., "Technical", "Behavioral", "HR Screening", "System Design").
-3. Ensure a balanced range of question categories relevant to the role.
-4. Format the output as a **JSON object** with an array named \`interviewQuestions\`.
+1. **Question Count**: Generate an appropriate number of questions based on the interview duration:
+   - 5 minutes: 2-3 questions
+   - 15 minutes: 4-6 questions
+   - 30 minutes: 6-8 questions
+   - 45 minutes: 8-10 questions
+   - 60 minutes: 10-12 questions
 
-Each item in the array should follow this structure:
+2. **Question Difficulty**: Start with warm-up questions and progressively increase complexity.
+
+3. **Question Types**: Match the tone and depth based on the interview type(s) selected.
+
+4. **Relevance**: Ensure all questions are directly relevant to the job description and role requirements.
+
+5. **Balance**: Include a mix of question categories appropriate for the role.
+
+6. **Format**: Return the response as a valid JSON object with the following structure:
 
 \`\`\`json
 {
   "interviewQuestions": [
     {
       "question": "Your interview question here",
-      "type": "Technical | Behavioral | Problem Solving | Experience | Leadership"
+      "type": "Technical | Behavioral | Problem Solving | Experience | Leadership | System Design"
     }
   ]
 }
@@ -110,34 +116,76 @@ Each item in the array should follow this structure:
 
 ---
 
-**Category Descriptions:**
+**Question Category Guidelines:**
 
-- **Technical**: Frameworks, tools, languages, or platform-specific questions.
-- **Problem Solving**: Algorithms, logic, system design, debugging scenarios.
-- **Behavioral**: Teamwork, leadership, conflict resolution, communication.
-- **Experience**: Role-based challenges, project retrospectives, achievements.
-- **Leadership**: Strategy, decision-making, team guidance, accountability.
+- **Technical**: Framework-specific, coding concepts, tools, technologies, best practices
+- **Behavioral**: Teamwork, communication, conflict resolution, adaptability, work style
+- **Problem Solving**: Algorithms, logical thinking, debugging, analytical approach
+- **Experience**: Past projects, achievements, challenges overcome, lessons learned
+- **Leadership**: Team management, decision-making, mentoring, strategic thinking
+- **System Design**: Architecture, scalability, design patterns, system components
 
 ---
 
-Only output the structured JSON. Avoid any commentary or explanation. Begin the interview with warm-up questions and increase in depth progressively.`;
+**Quality Standards:**
+- Questions should be clear and unambiguous
+- Avoid yes/no questions; prefer open-ended questions that encourage detailed responses
+- Include follow-up potential in each question
+- Ensure questions are appropriate for the seniority level implied by the job description
+- Make questions practical and scenario-based when possible
 
-export const FEEDBACK_PROMPT = `{{conversation}}
-Depends on this Interview Conversation between assitant and user,
-Give me feedback for user interview. Give me rating out of 10 for technical Skills,
-Communication, Problem Solving, Experince. Also give me summery in 3 lines
-about the interview and one line to let me know whether is recommanded
-for hire or not with msg. Give me response in JSON format
+Only output the structured JSON. Do not include any commentary, explanations, or additional text outside the JSON structure.`;
+
+export const FEEDBACK_PROMPT = `You are an expert interview assessor with extensive experience in evaluating candidates across various roles and industries.
+
+**Interview Conversation:**
+{{conversation}}
+
+**Task:**
+Based on the interview conversation above, provide a comprehensive and professional assessment of the candidate's performance. Your evaluation should be fair, constructive, and actionable.
+
+**Instructions:**
+
+1. **Rating Criteria** (Rate each on a scale of 1-10):
+   - **Technical Skills**: Knowledge of relevant technologies, frameworks, and concepts
+   - **Communication**: Clarity of expression, articulation, and professional communication
+   - **Problem Solving**: Analytical thinking, approach to challenges, and logical reasoning
+   - **Experience**: Relevant background, practical knowledge, and past achievements
+
+2. **Summary Requirements**:
+   - Provide a 3-line summary highlighting key strengths and areas for improvement
+   - Be specific about what the candidate did well and what needs development
+   - Focus on actionable insights
+
+3. **Recommendation**:
+   - Provide a clear "Hire" or "Do Not Hire" recommendation
+   - Include a brief justification for your recommendation
+   - Consider the overall performance and role requirements
+
+**Response Format:**
+Return your assessment as a valid JSON object with the following structure:
+
+\`\`\`json
 {
-  feedback:{
-    rating:{
-      techicalSkills:5,
-      communication:6,
-      problemSolving:4,
-      experince:7
+  "feedback": {
+    "rating": {
+      "technicalSkills": 7,
+      "communication": 8,
+      "problemSolving": 6,
+      "experience": 7
     },
-    summery:"<in 3 Line>",
-    Recommendation:"",
-    RecommendationMsg:""
+    "summary": "The candidate demonstrated strong communication skills and relevant experience in the field. They showed good understanding of core concepts but struggled with some advanced technical questions. Overall, they presented themselves professionally and showed enthusiasm for the role.",
+    "Recommendation": "Hire",
+    "RecommendationMsg": "Recommended for hire based on strong foundational skills and good cultural fit. Consider providing additional technical training in advanced areas."
   }
-}`;
+}
+\`\`\`
+
+**Evaluation Guidelines:**
+- Be objective and fair in your assessment
+- Consider the context of the role and required skills
+- Provide constructive feedback that helps the candidate improve
+- Base ratings on actual performance demonstrated in the conversation
+- Ensure recommendations align with the overall assessment
+
+Only output the structured JSON. Do not include any commentary or explanations outside the JSON structure.`;
