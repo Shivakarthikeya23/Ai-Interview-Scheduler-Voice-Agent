@@ -10,32 +10,52 @@ import React, { useEffect, useState } from 'react'
 
 function AuthPage() {
     const [loading, setLoading] = useState(false);
+    const [mounted, setMounted] = useState(false);
     const router = useRouter();
 
     useEffect(() => {
+        setMounted(true);
         checkUser();
     }, []);
 
     const checkUser = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-            router.push('/dashboard');
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (mounted && user) {
+                router.push('/dashboard');
+            }
+        } catch (error) {
+            console.error("Error checking user:", error);
         }
     };
 
     const signInWithGoogle = async () => {
         setLoading(true);
-        const { error } = await supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-                redirectTo: `${window.location.origin}/dashboard`
+        try {
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: `${window.location.origin}/dashboard`
+                }
+            });
+            if (error) {
+                console.log('Error signing in with Google:', error.message);
             }
-        });
-        if (error) {
-            console.log('Error signing in with Google:', error.message);
+        } catch (error) {
+            console.error("Error signing in:", error);
+        } finally {
             setLoading(false);
         }
     };
+
+    // Don't render until mounted to prevent hydration mismatch
+    if (!mounted) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-50">
+                <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     return (
         <div className='min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 flex flex-col'>
