@@ -137,7 +137,7 @@ Guidelines:
 - End the interview by thanking the candidate
 
 Duration: ${interviewInfo?.interviewData?.duration} minutes
-Interview Type: ${interviewInfo?.interviewData?.type?.join(', ') || 'General'}
+Interview Type: ${Array.isArray(interviewInfo?.interviewData?.type) ? interviewInfo.interviewData.type.join(', ') : interviewInfo?.interviewData?.type || 'General'}
 
 Remember: You are evaluating this candidate for a real position, so maintain professionalism throughout.`,
             },

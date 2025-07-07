@@ -88,7 +88,7 @@ AI Recruiter Team`);
           </div>
           <div className='text-sm text-gray-500 flex gap-2 items-center'>
             <Share className='h-4 w-4'/> 
-            {formData?.type?.join(', ') || 'General'} interview
+            {Array.isArray(formData?.type) ? formData.type.join(', ') : formData?.type || 'General'} interview
           </div>
         </div>
       </div>

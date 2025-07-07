@@ -152,7 +152,7 @@ function AllInterviews() {
         const exportData = filteredInterviews.map(interview => ({
             jobPosition: interview.jobPosition,
             duration: interview.duration,
-            type: interview.type?.join(', '),
+            type: Array.isArray(interview.type) ? interview.type.join(', ') : interview.type,
             questionsCount: interview.questionList?.length || 0,
             createdAt: interview.created_at,
             interviewLink: `${window.location.origin}/interview/${interview.interviewId}`
@@ -336,12 +336,12 @@ function AllInterviews() {
                                         <div className="flex items-center gap-3 mb-3">
                                             <h3 className="text-xl font-semibold">{interview.jobPosition}</h3>
                                             <div className="flex gap-1">
-                                                {interview.type?.slice(0, 3).map((type, index) => (
+                                                {Array.isArray(interview.type) && interview.type.slice(0, 3).map((type, index) => (
                                                     <Badge key={index} variant="secondary" className="text-xs">
                                                         {type}
                                                     </Badge>
                                                 ))}
-                                                {interview.type?.length > 3 && (
+                                                {Array.isArray(interview.type) && interview.type.length > 3 && (
                                                     <Badge variant="secondary" className="text-xs">
                                                         +{interview.type.length - 3}
                                                     </Badge>

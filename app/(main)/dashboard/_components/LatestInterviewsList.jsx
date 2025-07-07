@@ -171,12 +171,12 @@ function LatestInterviewsList() {
                                         <div className='flex items-center gap-2 mb-2'>
                                             <h3 className='font-semibold text-lg'>{interview.jobPosition}</h3>
                                             <div className='flex gap-1'>
-                                                {interview.type?.slice(0, 2).map((type, idx) => (
+                                                {Array.isArray(interview.type) && interview.type.slice(0, 2).map((type, idx) => (
                                                     <Badge key={idx} variant="secondary" className='text-xs'>
                                                         {type}
                                                     </Badge>
                                                 ))}
-                                                {interview.type?.length > 2 && (
+                                                {Array.isArray(interview.type) && interview.type.length > 2 && (
                                                     <Badge variant="secondary" className='text-xs'>
                                                         +{interview.type.length - 2}
                                                     </Badge>

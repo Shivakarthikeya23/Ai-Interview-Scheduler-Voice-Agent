@@ -16,7 +16,7 @@ export async function POST(req) {
 
     const FINAL_PROMPT = QUESTIONS_PROMPT.replace("{{{jobTitle}}}", jobPosition)
       .replace("{{{jobDescription}}}", jobDescription)
-      .replace("{{{interviewType}}}", Array.isArray(type) ? type.join(', ') : type)
+      .replace("{{{interviewType}}}", Array.isArray(type) ? type.join(', ') : (type || 'General'))
       .replace("{{{duration}}}", duration);
 
     console.log("Generating questions for:", jobPosition);
