@@ -26,7 +26,8 @@ function CandidatesPage() {
         filterAndSortCandidates();
     }, [candidates, searchTerm, filterStatus, sortBy]);
 
-            
+    const fetchCandidates = () => {
+        try {
             // Get real candidates from localStorage feedback data
             const realCandidates = [];
             
