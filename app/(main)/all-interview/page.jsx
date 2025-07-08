@@ -377,7 +377,7 @@ function AllInterviews() {
                                                 <Share className="w-4 h-4 mr-1" />
                                                 Share
                                             </Button>
-                                            <Link href={`/interview/${interview.interviewId}`}>
+                                            <Link href={`/interview-preview/${interview.interviewId}`}>
                                                 <Button size="sm">
                                                     <Eye className="w-4 h-4 mr-1" />
                                                     Preview

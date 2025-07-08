@@ -362,19 +362,83 @@ function CandidatesPage() {
                                         )}
 
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <Button size="sm" variant="outline">
+                                            <Button 
+                                                size="sm" 
+                                                variant="outline"
+                                                onClick={() => {
+                                                    // Store candidate data for feedback page
+                                                    const feedbackData = localStorage.getItem(candidate.id);
+                                                    if (feedbackData) {
+                                                        localStorage.setItem('interviewFeedback', feedbackData);
+                                                        router.push('/feedback');
+                                                    }
+                                                }}
+                                            >
                                                 <Eye className="w-4 h-4 mr-1" />
                                                 View Details
                                             </Button>
-                                            <Button size="sm" variant="outline">
+                                            <Button 
+                                                size="sm" 
+                                                variant="outline"
+                                                onClick={() => {
+                                                    if (candidate.email && candidate.email !== 'No email provided') {
+                                                        window.open(`mailto:${candidate.email}`, '_blank');
+                                                    } else {
+                                                        toast.error('No email available for this candidate');
+                                                    }
+                                                }}
+                                            >
                                                 <Mail className="w-4 h-4 mr-1" />
                                                 Contact
                                             </Button>
                                             {candidate.status === 'completed' && (
-                                                <Button size="sm" variant="outline">
+                                                <Button 
+                                                    size="sm" 
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        const feedbackData = localStorage.getItem(candidate.id);
+                                                        if (feedbackData) {
+                                                            const data = JSON.parse(feedbackData);
+                                                            const exportData = {
+                                                                candidateInfo: {
+                                                                    name: data.candidateName,
+                                                                    email: data.candidateEmail,
+                                                                    interviewDate: data.timestamp
+                                                                },
+                                                                interviewDetails: {
+                                                                    position: data.jobPosition,
+                                                                    duration: data.duration,
+                                                                    totalQuestions: data.totalQuestions
+                                                                },
+                                                                feedback: data.feedback,
+                                                                overallRating: getOverallRating(data.feedback?.rating)
+                                                            };
+                                                            
+                                                            const dataStr = JSON.stringify(exportData, null, 2);
+                                                            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+                                                            
+                                                            const exportFileDefaultName = `${candidate.name}-interview-report-${new Date().toISOString().split('T')[0]}.json`;
+                                                            
+                                                            const linkElement = document.createElement('a');
+                                                            linkElement.setAttribute('href', dataUri);
+                                                            linkElement.setAttribute('download', exportFileDefaultName);
+                                                            linkElement.click();
+                                                            
+                                                            toast.success('Report downloaded successfully');
+                                                        }
+                                                    }}
+                                                >
                                                     <Download className="w-4 h-4 mr-1" />
                                                     Download Report
                                                 </Button>
+                                            )}
+                                            {candidate.interviewId && (
+                                                <Link href={`/interview-preview/${candidate.interviewId}`}>
+                                                    <Button size="sm" variant="outline">
+                                                        <Eye className="w-4 h-4 mr-1" />
+                                                        View Interview
+                                                    </Button>
+                                                </Link>
                                             )}
                                         </div>
                                     </div>

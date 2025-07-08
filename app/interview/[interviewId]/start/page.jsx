@@ -308,8 +308,9 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
           const feedbackData = JSON.parse(cleanedContent);
           console.log("Parsed feedback:", feedbackData);
           
-          // Store feedback in localStorage
-          localStorage.setItem('interviewFeedback', JSON.stringify({
+          // Store feedback in localStorage with unique key
+          const feedbackKey = `interviewFeedback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          const feedbackObject = {
             feedback: feedbackData,
             interviewId: interviewInfo?.interviewData?.interviewId,
             candidateName: interviewInfo?.userName,
@@ -318,7 +319,11 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
             timestamp: new Date().toISOString(),
             duration: timer,
             totalQuestions: interviewInfo?.interviewData?.questionList?.length || 0
-          }));
+          };
+          
+          localStorage.setItem(feedbackKey, JSON.stringify(feedbackObject));
+          // Also store in main key for immediate feedback viewing
+          localStorage.setItem('interviewFeedback', JSON.stringify(feedbackObject));
           
           toast.success("Interview feedback generated successfully!");
           
