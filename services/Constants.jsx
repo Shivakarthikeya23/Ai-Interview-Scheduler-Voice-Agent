@@ -13,6 +13,7 @@ import {
   Users,
   WalletCards,
   MessageSquare,
+  BarChart3
 } from "lucide-react";
 
 export const SideBarOptions = [
