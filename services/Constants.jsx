@@ -32,6 +32,16 @@ export const SideBarOptions = [
     path: "/feedback",
   },
   {
+    name: "Analytics",
+    icon: BarChart3,
+    path: "/analytics",
+  },
+  {
+    name: "Candidates",
+    icon: Users,
+    path: "/candidates",
+  },
+  {
     name: "Settings",
     icon: Settings,
     path: "/settings",
