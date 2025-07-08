@@ -38,11 +38,6 @@ export const SideBarOptions = [
     path: "/analytics",
   },
   {
-    name: "Candidates",
-    icon: Users,
-    path: "/candidates",
-  },
-  {
     name: "Settings",
     icon: Settings,
     path: "/settings",
