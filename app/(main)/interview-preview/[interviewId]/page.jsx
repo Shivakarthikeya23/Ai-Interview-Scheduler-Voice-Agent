@@ -205,9 +205,8 @@ function InterviewPreviewPage() {
     };
 
     const viewCandidateDetails = (candidate) => {
-        // Store candidate data in localStorage for the feedback page
-        localStorage.setItem('interviewFeedback', JSON.stringify(candidate));
-        router.push('/feedback');
+        // Navigate to the specific feedback page
+        router.push(`/feedback/${interviewId}/${candidate.id}`);
     };
 
     if (loading) {

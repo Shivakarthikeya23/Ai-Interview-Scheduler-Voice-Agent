@@ -26,50 +26,46 @@ function CandidatesPage() {
         filterAndSortCandidates();
     }, [candidates, searchTerm, filterStatus, sortBy]);
 
-    const fetchCandidates = async () => {
-        try {
-            setLoading(true);
-            // Mock data - in real app, this would come from your database
-            const mockCandidates = [
-                {
-                    id: 1,
-                    name: "John Smith",
-                    email: "john.smith@email.com",
-                    position: "Software Engineer",
-                    interviewDate: "2024-01-15T10:00:00Z",
-                    status: "completed",
-                    rating: 8.5,
-                    duration: 45,
-                    feedback: "Strong technical skills, good communication",
-                    recommendation: "Hire"
-                },
-                {
-                    id: 2,
-                    name: "Sarah Johnson",
-                    email: "sarah.j@email.com",
-                    position: "Product Manager",
-                    interviewDate: "2024-01-14T14:30:00Z",
-                    status: "completed",
-                    rating: 7.2,
-                    duration: 38,
-                    feedback: "Good product sense, needs improvement in technical depth",
-                    recommendation: "Consider"
-                },
-                {
-                    id: 3,
-                    name: "Mike Chen",
-                    email: "mike.chen@email.com",
-                    position: "Data Scientist",
-                    interviewDate: "2024-01-13T09:15:00Z",
-                    status: "pending",
-                    rating: null,
-                    duration: null,
-                    feedback: null,
-                    recommendation: null
-                }
-            ];
             
-            setCandidates(mockCandidates);
+            // Get real candidates from localStorage feedback data
+            const realCandidates = [];
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.startsWith('interviewFeedback_') || key.startsWith('candidate_'))) {
+                    try {
+                        const feedbackData = JSON.parse(localStorage.getItem(key));
+                        if (feedbackData.candidateName && feedbackData.interviewId) {
+                            const overallRating = feedbackData.feedback?.rating ? 
+                                Math.round(Object.values(feedbackData.feedback.rating).reduce((sum, rating) => sum + rating, 0) / Object.keys(feedbackData.feedback.rating).length) : 
+                                null;
+                            
+                            realCandidates.push({
+                                id: key,
+                                name: feedbackData.candidateName,
+                                email: feedbackData.candidateEmail || 'No email provided',
+                                position: feedbackData.jobPosition,
+                                interviewId: feedbackData.interviewId,
+                                interviewDate: feedbackData.timestamp,
+                                status: 'completed',
+                                rating: overallRating,
+                                duration: feedbackData.duration ? Math.floor(feedbackData.duration / 60) : null,
+                                feedback: feedbackData.feedback?.summary || feedbackData.feedback?.summery || 'No feedback available',
+                                recommendation: feedbackData.feedback?.Recommendation || 'Not Available'
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Error parsing feedback data:', error);
+                    }
+                }
+            }
+            
+            // Remove duplicates based on name and email
+            const uniqueCandidates = realCandidates.filter((candidate, index, self) => 
+                index === self.findIndex(c => c.name === candidate.name && c.email === candidate.email)
+            );
+            
+            setCandidates(uniqueCandidates);
         } catch (error) {
             console.error('Error fetching candidates:', error);
             toast.error('Failed to load candidates');

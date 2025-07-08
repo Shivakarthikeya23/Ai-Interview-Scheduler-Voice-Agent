@@ -310,6 +310,7 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
           
           // Store feedback in localStorage with unique key
           const feedbackKey = `interviewFeedback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          const candidateKey = `candidate_${interviewInfo?.interviewData?.interviewId}_${Date.now()}`;
           const feedbackObject = {
             feedback: feedbackData,
             interviewId: interviewInfo?.interviewData?.interviewId,
@@ -322,6 +323,7 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
           };
           
           localStorage.setItem(feedbackKey, JSON.stringify(feedbackObject));
+          localStorage.setItem(candidateKey, JSON.stringify(feedbackObject));
           // Also store in main key for immediate feedback viewing
           localStorage.setItem('interviewFeedback', JSON.stringify(feedbackObject));
           
@@ -329,7 +331,7 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
           
           // Redirect to feedback page
           setTimeout(() => {
-            router.push('/feedback');
+            router.push(`/feedback/${interviewInfo?.interviewData?.interviewId}/${candidateKey}`);
           }, 1500);
         } catch (parseError) {
           console.error("Error parsing feedback:", parseError);
