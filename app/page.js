@@ -8,12 +8,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/services/supabaseClient";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useSearchParams } from "next/navigation";
 
 export default function LandingPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     setMounted(true);
@@ -34,6 +36,14 @@ export default function LandingPage() {
 
     return () => subscription.unsubscribe();
   }, [router]);
+
+  useEffect(() => {
+    // If there is a 'code' param in the URL (from OAuth), redirect to /dashboard
+    if (searchParams && searchParams.get("code")) {
+      router.replace("/dashboard");
+      return;
+    }
+  }, [searchParams, router]);
 
   const checkUser = async () => {
     try {
