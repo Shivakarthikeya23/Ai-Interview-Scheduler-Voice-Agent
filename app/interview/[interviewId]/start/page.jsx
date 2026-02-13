@@ -107,8 +107,13 @@ function StartInterview() {
           language: "en-US",
         },
         voice: {
-          provider: "playht",
-          voiceId: "jennifer",
+          provider: "cartesia",
+          voiceId: "248be419-c632-4f23-adf1-5324ed7dbf1d",
+          fallbackPlan: {
+            voices: [
+              { provider: "openai", voiceId: "shimmer" },
+            ],
+          },
         },
         model: {
           provider: "openai",
@@ -255,13 +260,28 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
       }
     };
 
-    const handleError = (error) => {
-      console.error("Vapi error:", error);
-      toast.error("Interview call error occurred");
+    const handleError = (err) => {
+      console.error("Vapi error:", err);
+      const errorMsg = err?.errorMsg || err?.message || "";
+      const endedReason = err?.error?.endedReason || err?.endedReason || "";
+      const errorStr = JSON.stringify(err || {}).toLowerCase();
+      const isVoicePipelineError =
+        endedReason?.includes("playht") ||
+        endedReason?.includes("pipeline-error") ||
+        errorMsg?.toLowerCase().includes("meeting has ended") ||
+        errorStr?.includes("playht") ||
+        errorStr?.includes("pipeline-error");
+
+      if (isVoicePipelineError) {
+        toast.error("Voice service temporarily unavailable. Please try again.");
+        setError("retryable"); // Special flag for retry UI
+      } else {
+        toast.error("Interview call error occurred");
+        setError("Voice interface error occurred");
+      }
       setIsCallActive(false);
       setCallStarted(false);
       setConnectionStatus('error');
-      setError("Voice interface error occurred");
     };
 
     vapi.on("call-start", handleCallStart);
@@ -420,18 +440,40 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
   }
 
   if (error) {
+    const isRetryable = error === "retryable";
     return (
       <div className="p-20 lg:px-48 xl:px-56 flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Interview Setup Error</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <button 
-            onClick={() => router.push('/dashboard')}
-            className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90"
-          >
-            Return to Dashboard
-          </button>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            {isRetryable ? "Connection Error" : "Interview Setup Error"}
+          </h2>
+          <p className="text-gray-600 mb-4">
+            {isRetryable
+              ? "The voice service temporarily failed to connect. This can happen during high load. Please try again."
+              : error}
+          </p>
+          <div className="flex gap-3 justify-center flex-wrap">
+            {isRetryable && (
+              <button
+                onClick={() => {
+                  setError(null);
+                  setCallStarted(false);
+                  setConnectionStatus('ready');
+                  // Effect will auto-start call when state updates
+                }}
+                className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90"
+              >
+                Try Again
+              </button>
+            )}
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600"
+            >
+              Return to Dashboard
+            </button>
+          </div>
         </div>
       </div>
     );
