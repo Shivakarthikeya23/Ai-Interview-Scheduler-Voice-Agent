@@ -92,6 +92,8 @@ Based on the above inputs, generate a well-structured, insightful, and appropria
 
 **Instructions:**
 
+0. **STRICT - Question type**: You MUST generate ONLY questions of the selected Interview Type(s). If only "Technical" is selected, every question must be Technical; do NOT include Behavioral, Experience, Problem Solving, System Design, or Leadership. The "type" field of each question in your JSON must be exactly one of the selected types (e.g. if selected type is "Technical", every "type" must be "Technical").
+
 1. **Question Count**: Generate an appropriate number of questions based on the interview duration:
    - 5 minutes: 2-3 questions
    - 15 minutes: 4-6 questions
@@ -101,24 +103,25 @@ Based on the above inputs, generate a well-structured, insightful, and appropria
 
 2. **Question Difficulty**: Start with warm-up questions and progressively increase complexity.
 
-3. **Question Types**: Match the tone and depth based on the interview type(s) selected.
+3. **Question Types**: If only ONE interview type is selected, generate ONLY questions of that type. If multiple types are selected, include a mix of those types only. Do not mix in categories that were not selected.
 
 4. **Relevance**: Ensure all questions are directly relevant to the job description and role requirements.
 
-5. **Balance**: Include a mix of question categories appropriate for the role.
+5. **Balance**: Match the selected interview type(s) only; do not add unrelated categories.
 
-6. **Format**: Return the response as a valid JSON object with the following structure:
+6. **Format**: Return the response as a valid JSON object with the following structure. The "type" of each question MUST be one of the selected Interview Type(s) only (e.g. if Interview Type is "Technical", use "Technical" for every question):
 
 \`\`\`json
 {
   "interviewQuestions": [
     {
       "question": "Your interview question here",
-      "type": "Technical | Behavioral | Problem Solving | Experience | Leadership | System Design"
+      "type": "Technical"
     }
   ]
 }
 \`\`\`
+(Use the actual selected type(s) for "type"; if only Technical was selected, every type must be "Technical".)
 
 ---
 
@@ -186,11 +189,10 @@ Return your assessment as a valid JSON object with the following structure:
 \`\`\`
 
 **Evaluation Guidelines:**
-- Be objective and fair in your assessment
-- Consider the context of the role and required skills
-- Provide constructive feedback that helps the candidate improve
-- Base ratings on actual performance demonstrated in the conversation
-- Ensure recommendations align with the overall assessment
-- Focus on specific examples from the conversation when possible
+- Be objective and fair in your assessment. Base ALL ratings and the recommendation on the FULL conversation—consider how many questions were answered and the depth of responses.
+- If the conversation has few or no substantive candidate responses (e.g. only greetings, or silence), set Recommendation to "Do Not Hire" and RecommendationMsg to "Candidate did not complete the interview or provided insufficient response for evaluation." Rate all criteria low (1-3) in that case.
+- If the candidate answered multiple questions with substance, rate each criterion based on evidence across the full interview; avoid giving middle scores (e.g. 7/10) when there is only one short response—scores must reflect breadth and depth of the complete interview.
+- Provide a clear "why" in RecommendationMsg for both Hire and Do Not Hire (e.g. specific strengths or lack of demonstrated skills).
+- Consider the context of the role and required skills. Focus on specific examples from the conversation when possible.
 
 Only output the structured JSON. Do not include any commentary or explanations outside the JSON structure.`;

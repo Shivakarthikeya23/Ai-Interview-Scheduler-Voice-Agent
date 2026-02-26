@@ -48,12 +48,13 @@ function QuestionsList({formData, onCreateLink}) {
     }
 
     const onFinish = async () => {
+      const filtered = (questionList || []).filter((q) => q?.question?.trim());
+      if (!filtered.length) return;
       setSaveLoading(true);
       const interviewId = v4();
-    
       const payload = {
         ...formData,
-        questionList,
+        questionList: filtered,
         userEmail: user?.email,
         interviewId
       };
@@ -92,7 +93,7 @@ function QuestionsList({formData, onCreateLink}) {
     }
      {questionList?.length > 0 && (
         <div>
-            <QuestionListContainer questionList={questionList} />
+            <QuestionListContainer questionList={questionList} setQuestionList={setQuestionList} />
         </div>
     )}
 

@@ -55,44 +55,30 @@ function InterviewPreviewPage() {
 
             setInterview(interviewData);
 
-            // Fetch candidates who took this interview from localStorage
-            // In a real app, this would be from a database table like 'InterviewSessions'
             const allFeedback = [];
+            const seen = new Set();
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
-                if (key && key.startsWith('interviewFeedback_')) {
-                    try {
-                        const feedbackData = JSON.parse(localStorage.getItem(key));
-                        if (feedbackData.interviewId === interviewId) {
-                            allFeedback.push({
-                                id: key,
-                                ...feedbackData,
-                                status: 'completed'
-                            });
-                        }
-                    } catch (error) {
-                        console.error('Error parsing feedback data:', error);
-                    }
-                }
-            }
-
-            // Also check the main interviewFeedback key
-            const mainFeedback = localStorage.getItem('interviewFeedback');
-            if (mainFeedback) {
+                if (!key || (!key.startsWith('interviewFeedback_') && !key.startsWith('candidate_'))) continue;
+                if (key === 'interviewFeedback') continue;
                 try {
-                    const feedbackData = JSON.parse(mainFeedback);
-                    if (feedbackData.interviewId === interviewId) {
-                        allFeedback.push({
-                            id: 'main_feedback',
-                            ...feedbackData,
-                            status: 'completed'
-                        });
-                    }
-                } catch (error) {
-                    console.error('Error parsing main feedback data:', error);
-                }
+                    const feedbackData = JSON.parse(localStorage.getItem(key));
+                    if (feedbackData?.interviewId !== interviewId) continue;
+                    const id = key;
+                    if (seen.has(id)) continue;
+                    seen.add(id);
+                    allFeedback.push({ id, ...feedbackData, status: 'completed' });
+                } catch (e) { /* skip */ }
             }
-
+            const main = localStorage.getItem('interviewFeedback');
+            if (main) {
+                try {
+                    const feedbackData = JSON.parse(main);
+                    if (feedbackData?.interviewId === interviewId && !seen.has('interviewFeedback')) {
+                        allFeedback.push({ id: 'interviewFeedback', ...feedbackData, status: 'completed' });
+                    }
+                } catch (e) { /* skip */ }
+            }
             setCandidates(allFeedback);
         } catch (error) {
             console.error('Error:', error);

@@ -21,9 +21,11 @@ function StartInterview() {
   const [error, setError] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [waitingForAIResponse, setWaitingForAIResponse] = useState(false);
   const router = useRouter();
   const timerRef = useRef(null);
   const feedbackGeneratedRef = useRef(false);
+  const lastEndedReasonRef = useRef("");
 
   // Timer effect - more reliable implementation
   useEffect(() => {
@@ -87,12 +89,12 @@ function StartInterview() {
     }
   }, [interviewInfo, vapi, callStarted, error, connectionStatus]);
 
-  const startCall = useCallback(() => {
+  const startCall = useCallback(async () => {
     if (!vapi || !interviewInfo?.interviewData?.questionList || callStarted) return;
-    
+
     try {
       setConnectionStatus('connecting');
-      
+
       let questionList = "";
       interviewInfo.interviewData.questionList.forEach((item, index) => {
         questionList += `${index + 1}. ${item.question}\n`;
@@ -101,19 +103,17 @@ function StartInterview() {
       const assistantOptions = {
         name: "AI Recruiter",
         firstMessage: `Hi ${interviewInfo?.userName}, welcome to your interview for the ${interviewInfo?.interviewData?.jobPosition} position. I'm your AI interviewer today. Are you ready to begin?`,
+        silenceTimeoutSeconds: 90,
         transcriber: {
           provider: "deepgram",
           model: "nova-2",
           language: "en-US",
+          // Detect end of speech after 400ms silence so "yes" / short answers are picked up quickly
+          endpointing: 400,
         },
         voice: {
-          provider: "cartesia",
-          voiceId: "248be419-c632-4f23-adf1-5324ed7dbf1d",
-          fallbackPlan: {
-            voices: [
-              { provider: "openai", voiceId: "shimmer" },
-            ],
-          },
+          provider: "openai",
+          voiceId: "shimmer",
         },
         model: {
           provider: "openai",
@@ -150,37 +150,46 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
         },
       };
 
-      vapi.start(assistantOptions);
+      await vapi.start(assistantOptions);
       setCallStarted(true);
       toast.success("Connecting to interview...");
     } catch (error) {
       console.error("Error starting call:", error);
-      setError("Failed to start interview call. Please refresh and try again.");
       setConnectionStatus('error');
-      toast.error("Failed to start interview call");
+      setCallStarted(false);
+      // Vapi SDK can pass Response or error object; try to get API error message
+      let msg = "Failed to start interview call. Please try again.";
+      if (error?.error?.message) msg = error.error.message;
+      else if (typeof error?.error === "object" && error.error !== null) {
+        const apiErr = error.error;
+        msg = apiErr.message || apiErr.error || JSON.stringify(apiErr);
+      } else if (error?.message) msg = error.message;
+      else if (error?.errorMsg) msg = error.errorMsg;
+      setError(msg);
+      toast.error("Failed to start interview call. Please try again.");
     }
   }, [vapi, interviewInfo, callStarted]);
 
   const stopInterview = useCallback(async () => {
     if (feedbackGeneratedRef.current) return; // Prevent multiple calls
-    
+
     try {
       setIsGeneratingFeedback(true);
       feedbackGeneratedRef.current = true;
-      
+
       // Stop the call first
       if (vapi && isCallActive) {
         vapi.stop();
         setIsCallActive(false);
         setCallStarted(false);
         setConnectionStatus('disconnected');
-        
+
         // Clear timer
         if (timerRef.current) {
           clearInterval(timerRef.current);
           timerRef.current = null;
         }
-        
+
         toast.success("Interview ended successfully");
       }
 
@@ -198,7 +207,7 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
       toast.error("Error ending interview");
       setIsGeneratingFeedback(false);
       feedbackGeneratedRef.current = false;
-      
+
       // Still redirect to dashboard
       setTimeout(() => {
         router.push('/dashboard');
@@ -221,6 +230,7 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
     const handleSpeechStart = () => {
       console.log("AI speech started");
       setActiveUser(false);
+      setWaitingForAIResponse(false);
     };
 
     const handleSpeechEnd = () => {
@@ -232,52 +242,103 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
       console.log("Interview call has ended");
       setIsCallActive(false);
       setCallStarted(false);
+      setWaitingForAIResponse(false);
       setConnectionStatus('disconnected');
-      
+
       // Clear timer
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
-      
+
       toast.info("Interview call ended");
-      
-      // Only generate feedback if not already generating
-      if (!feedbackGeneratedRef.current && conversation && conversation.length > 0) {
+
+      if (feedbackGeneratedRef.current) return;
+      const reason = lastEndedReasonRef.current;
+      const userMessages = conversation?.filter((m) => m.role === "user")?.length ?? 0;
+      const noResponse = reason?.includes("silence-timed-out") && (!conversation?.length || userMessages < 1);
+
+      if (noResponse) {
+        feedbackGeneratedRef.current = true;
+        const candidateKey = `candidate_${interviewInfo?.interviewData?.interviewId}_${Date.now()}`;
+        const feedbackObject = {
+          feedback: {
+            rating: { technicalSkills: 0, communication: 0, problemSolving: 0, experience: 0 },
+            summary: "No response received from candidate.",
+            Recommendation: "Do Not Hire",
+            RecommendationMsg: "Candidate did not give any response during the interview.",
+          },
+          interviewId: interviewInfo?.interviewData?.interviewId,
+          candidateName: interviewInfo?.userName,
+          candidateEmail: interviewInfo?.userEmail,
+          jobPosition: interviewInfo?.interviewData?.jobPosition,
+          timestamp: new Date().toISOString(),
+          duration: timer,
+          totalQuestions: interviewInfo?.interviewData?.questionList?.length || 0,
+          conversation: conversation || [],
+        };
+        localStorage.setItem(candidateKey, JSON.stringify(feedbackObject));
+        localStorage.setItem(`interviewFeedback_${Date.now()}`, JSON.stringify(feedbackObject));
+        router.push(`/interview/${interviewInfo?.interviewData?.interviewId}/thank-you?noResponse=1`);
+        return;
+      }
+      if (conversation && conversation.length > 0) {
         feedbackGeneratedRef.current = true;
         GenerateFeedback();
-      } else if (!feedbackGeneratedRef.current) {
-        setTimeout(() => {
-          router.push('/dashboard');
-        }, 2000);
+      } else {
+        setTimeout(() => router.push("/interview/" + interviewInfo?.interviewData?.interviewId + "/thank-you"), 1500);
       }
     };
 
     const handleMessage = (message) => {
       console.log("Message received:", message);
+      // Capture endedReason from status-update (fires before/with error when call ends)
+      if (message?.type === "status-update" && message?.status === "ended" && message?.endedReason) {
+        lastEndedReasonRef.current = message.endedReason;
+      }
       if (message?.conversation) {
         setConversation(message.conversation);
+        // User transcript was sent and conversation updated — show "Processing..." until AI speaks
+        const lastMessage = message.conversation?.[message.conversation.length - 1];
+        if (lastMessage?.role === "user") {
+          setWaitingForAIResponse(true);
+        }
       }
     };
 
     const handleError = (err) => {
-      console.error("Vapi error:", err);
       const errorMsg = err?.errorMsg || err?.message || "";
-      const endedReason = err?.error?.endedReason || err?.endedReason || "";
+      const endedReason =
+        lastEndedReasonRef.current ||
+        err?.error?.endedReason ||
+        err?.endedReason ||
+        "";
+      lastEndedReasonRef.current = "";
       const errorStr = JSON.stringify(err || {}).toLowerCase();
-      const isVoicePipelineError =
+      console.error("Vapi error (full):", err);
+      console.error("Vapi endedReason:", endedReason || "(none)");
+
+      const isRetryableError =
         endedReason?.includes("playht") ||
         endedReason?.includes("pipeline-error") ||
+        endedReason?.includes("ejection") ||
+        endedReason?.includes("silence-timed-out") ||
         errorMsg?.toLowerCase().includes("meeting has ended") ||
         errorStr?.includes("playht") ||
-        errorStr?.includes("pipeline-error");
+        errorStr?.includes("pipeline-error") ||
+        errorStr?.includes("ejection") ||
+        errorStr?.includes("silence-timed-out");
 
-      if (isVoicePipelineError) {
-        toast.error("Voice service temporarily unavailable. Please try again.");
-        setError("retryable"); // Special flag for retry UI
+      if (endedReason?.includes("silence-timed-out")) {
+        toast.error("Call ended due to silence. You can take your time and try again.");
+        setError("retryable");
+      } else if (isRetryableError) {
+        toast.error("Connection dropped. Please try again.");
+        setError("retryable");
       } else {
+        const reason = endedReason || errorMsg || "Unknown error";
         toast.error("Interview call error occurred");
-        setError("Voice interface error occurred");
+        setError(`Voice error: ${reason}`);
       }
       setIsCallActive(false);
       setCallStarted(false);
@@ -319,15 +380,15 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
       });
 
       console.log("Feedback generated:", result?.data);
-      
+
       if (result?.data?.content) {
         const content = result.data.content;
         const cleanedContent = content.replace(/```json|```/g, '').trim();
-        
+
         try {
           const feedbackData = JSON.parse(cleanedContent);
           console.log("Parsed feedback:", feedbackData);
-          
+
           // Store feedback in localStorage with unique key
           const feedbackKey = `interviewFeedback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           const candidateKey = `candidate_${interviewInfo?.interviewData?.interviewId}_${Date.now()}`;
@@ -339,19 +400,19 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
             jobPosition: interviewInfo?.interviewData?.jobPosition,
             timestamp: new Date().toISOString(),
             duration: timer,
-            totalQuestions: interviewInfo?.interviewData?.questionList?.length || 0
+            totalQuestions: interviewInfo?.interviewData?.questionList?.length || 0,
+            conversation,
           };
-          
+
           localStorage.setItem(feedbackKey, JSON.stringify(feedbackObject));
           localStorage.setItem(candidateKey, JSON.stringify(feedbackObject));
           // Also store in main key for immediate feedback viewing
           localStorage.setItem('interviewFeedback', JSON.stringify(feedbackObject));
-          
+
           toast.success("Interview feedback generated successfully!");
-          
-          // Redirect to feedback page
+
           setTimeout(() => {
-            router.push(`/feedback/${interviewInfo?.interviewData?.interviewId}/${candidateKey}`);
+            router.push(`/interview/${interviewInfo?.interviewData?.interviewId}/thank-you`);
           }, 1500);
         } catch (parseError) {
           console.error("Error parsing feedback:", parseError);
@@ -398,7 +459,7 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
-      
+
       if (vapi && isCallActive) {
         try {
           vapi.stop();
@@ -503,11 +564,10 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
             )}
           </div>
           <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${
-              connectionStatus === 'connected' ? 'bg-green-500 animate-pulse' : 
-              connectionStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' :
-              connectionStatus === 'error' ? 'bg-red-500' : 'bg-gray-400'
-            }`}></div>
+            <div className={`w-3 h-3 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500 animate-pulse' :
+                connectionStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                  connectionStatus === 'error' ? 'bg-red-500' : 'bg-gray-400'
+              }`}></div>
             <span className="text-sm font-medium capitalize">
               {connectionStatus}
             </span>
@@ -519,7 +579,7 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
       {maxDuration > 0 && (
         <div className="mb-6">
           <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
+            <div
               className="bg-primary h-2 rounded-full transition-all duration-1000"
               style={{ width: `${Math.min(progressPercentage, 100)}%` }}
             ></div>
@@ -561,10 +621,10 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
           </div>
           <h3 className="font-semibold text-lg">AI Recruiter</h3>
           <p className="text-sm text-gray-600 text-center px-4">
-            {connectionStatus === 'connected' ? 
-              (!activeUser ? 'Speaking...' : 'Listening...') : 
-              connectionStatus === 'connecting' ? 'Connecting...' : 
-              'Ready to start interview'
+            {connectionStatus === 'connected' ?
+              (!activeUser ? 'Speaking...' : waitingForAIResponse ? 'Preparing response...' : 'Listening...') :
+              connectionStatus === 'connecting' ? 'Connecting...' :
+                'Ready to start interview'
             }
           </p>
         </div>
@@ -581,10 +641,12 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
           </div>
           <h3 className="font-semibold text-lg">{interviewInfo?.userName}</h3>
           <p className="text-sm text-gray-600 text-center px-4">
-            {connectionStatus === 'connected' ? 
-              (activeUser ? 'Your turn to speak' : 'Listening to AI') : 
-              connectionStatus === 'connecting' ? 'Connecting...' : 
-              'Waiting to connect'
+            {connectionStatus === 'connected' ?
+              (activeUser
+                ? (waitingForAIResponse ? 'Processing your response...' : 'Your turn to speak')
+                : 'Listening to AI') :
+              connectionStatus === 'connecting' ? 'Connecting...' :
+                'Waiting to connect'
             }
           </p>
         </div>
@@ -608,9 +670,9 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
             {isMuted ? 'Unmute' : 'Mute'}
           </button>
         )}
-        
+
         <AlertConfirmation stopInterview={stopInterview}>
-          <button 
+          <button
             className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={isGeneratingFeedback}
           >
