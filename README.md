@@ -57,7 +57,9 @@ A modern, AI-powered interview platform that revolutionizes the recruitment proc
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
    OPENROUTER_API_KEY=your_openrouter_api_key
+   NEXT_PUBLIC_VAPI_API_KEY=your_vapi_public_key
    ```
+   For **NEXT_PUBLIC_VAPI_API_KEY**: use your **public** API key from [Vapi Dashboard](https://dashboard.vapi.ai) → Settings → API Keys. The AI voice interview requires this. In the Vapi dashboard, ensure **OpenAI** (and optionally **Deepgram**) are configured under Provider Credentials so the inline assistant can run.
 
 4. **Run the development server**
    ```bash

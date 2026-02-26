@@ -24,30 +24,22 @@ function FeedbackPage() {
         try {
             setLoading(true);
             
-            // Try to get feedback data from localStorage using the candidateId
             let feedbackJson = localStorage.getItem(candidateId);
-            
-            // If not found, try the main feedback key
             if (!feedbackJson) {
-                feedbackJson = localStorage.getItem('interviewFeedback');
-            }
-            
-            // If still not found, search through all feedback keys
-            if (!feedbackJson) {
+                let fallback = null;
                 for (let i = 0; i < localStorage.length; i++) {
                     const key = localStorage.key(i);
-                    if (key && key.startsWith('interviewFeedback_')) {
-                        try {
-                            const data = JSON.parse(localStorage.getItem(key));
-                            if (data.interviewId === interviewId) {
-                                feedbackJson = localStorage.getItem(key);
-                                break;
-                            }
-                        } catch (error) {
-                            console.error('Error parsing feedback data:', error);
+                    if (!key) continue;
+                    try {
+                        const data = JSON.parse(localStorage.getItem(key));
+                        if (data?.interviewId !== interviewId) continue;
+                        if (key.startsWith('interviewFeedback_') || key.startsWith('candidate_') || key === 'interviewFeedback') {
+                            if (key === candidateId) { feedbackJson = localStorage.getItem(key); break; }
+                            if (!fallback) fallback = localStorage.getItem(key);
                         }
-                    }
+                    } catch (e) { /* skip */ }
                 }
+                if (!feedbackJson && fallback) feedbackJson = fallback;
             }
 
             if (feedbackJson) {
@@ -346,6 +338,7 @@ Recommendation: ${feedbackData.feedback?.Recommendation || 'N/A'}`;
                             <Award className="w-5 h-5" />
                             Hiring Recommendation
                         </CardTitle>
+                        <CardDescription>Why Hire or Do Not Hire — based on full interview</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
@@ -364,6 +357,36 @@ Recommendation: ${feedbackData.feedback?.Recommendation || 'N/A'}`;
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Interview transcript */}
+            {(() => {
+                const conversation = feedbackData.conversation ?? feedbackData.feedback?.conversation ?? [];
+                const list = Array.isArray(conversation) ? conversation : [];
+                if (list.length === 0) return null;
+                return (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Interview transcript</CardTitle>
+                            <CardDescription>Full conversation for context</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3 max-h-80 overflow-y-auto text-sm">
+                                {list.map((msg, i) => {
+                                    const role = msg.role ?? msg.message?.role;
+                                    const text = typeof msg.content === 'string' ? msg.content : msg.message?.content ?? (typeof msg.message === 'string' ? msg.message : null) ?? '';
+                                    if (!text && !msg.content) return null;
+                                    return (
+                                        <div key={i} className={role === 'user' ? 'text-right' : ''}>
+                                            <span className="font-medium text-gray-500">{role === 'user' ? 'Candidate' : 'AI'}: </span>
+                                            <span className="text-gray-800">{text || msg.content || ''}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </CardContent>
+                    </Card>
+                );
+            })()}
 
             {/* Actions */}
             <Card>
