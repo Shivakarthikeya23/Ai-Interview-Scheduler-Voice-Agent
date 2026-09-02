@@ -34,35 +34,46 @@ function Interview() {
         .select("jobPosition,  jobDescription, duration, type")
         .eq("interviewId", interviewId);
 
-      setInterviewData(Interviews[0]);
-      console.log(Interviews[0]);
-      setLoading(false);
-
-      if (Interviews?.length == 0) {
+      if (error || !Interviews?.length) {
         toast("Incorrect Interview link");
         return;
       }
+
+      setInterviewData(Interviews[0]);
+      console.log(Interviews[0]);
     } catch {
-      setLoading(false);
       toast("Incorrect Interview Link");
+    } finally {
+      setLoading(false);
     }
   };
 
   const onJoinInterview = async () => {
     setLoading(true);
-    let { data: Interviews, error } = await supabase
-      .from("Interviews")
-      .select("*")
-      .eq("interviewId", interviewId);
+    try {
+      let { data: Interviews, error } = await supabase
+        .from("Interviews")
+        .select("*")
+        .eq("interviewId", interviewId);
 
-    console.log("Interviews", Interviews);
-    setInterviewInfo({
-      userName: userName,
-      userEmail: userEmail,
-      interviewData: Interviews[0],
-    });
-    router.push("/interview/" + interviewId + "/start");
-    setLoading(false);
+      if (error || !Interviews?.length) {
+        toast("Unable to join interview. Please check the link and try again.");
+        return;
+      }
+
+      console.log("Interviews", Interviews);
+      setInterviewInfo({
+        userName: userName,
+        userEmail: userEmail,
+        interviewData: Interviews[0],
+      });
+      router.push("/interview/" + interviewId + "/start");
+    } catch (error) {
+      console.error("Error joining interview:", error);
+      toast("Unable to join interview. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -92,7 +103,7 @@ function Interview() {
           />
         </div>
         <div className="w-full">
-          <h2>Enter your emmail</h2>
+          <h2>Enter your email</h2>
           <Input
             placeholder="e.g. John.Smith@gmail.com"
             onChange={(event) => setUserEmail(event.target.value)}
@@ -121,7 +132,7 @@ function Interview() {
 
         <Button
           className={"mt-5 w-full font-bold"}
-          disabled={loading || !userName}
+          disabled={loading || !userName?.trim() || !userEmail?.trim()}
           onClick={() => onJoinInterview()}
         >
           <Video />
