@@ -23,7 +23,7 @@ function CreateInterview() {
     }
 
     const onGoToNext = () => {
-        if(formData?.jobPosition == "" || formData?.jobDescription == "" || formData?.duration == "" || formData?.type.length == 0){
+        if(!formData?.jobPosition?.trim() || !formData?.jobDescription?.trim() || !formData?.duration || !formData?.type?.length){
             toast("Please fill all the fields")
             return ;
         }

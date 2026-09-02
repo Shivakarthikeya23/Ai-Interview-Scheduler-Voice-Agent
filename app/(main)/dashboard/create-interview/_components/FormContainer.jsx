@@ -23,6 +23,13 @@ function FormContainer({onHandleInputChange, GoToNext}) {
         }
     }, [interviewType])
 
+    // Select's defaultValue only sets the displayed label; it never calls
+    // onValueChange, so without this the form's duration silently stays
+    // unset unless the user manually reopens the dropdown.
+    useEffect(() => {
+        onHandleInputChange('duration', '5')
+    }, [])
+
     const AddInterviewType=(type) => {
         const data = interviewType.includes(type);
         if(!data){
@@ -49,7 +56,7 @@ function FormContainer({onHandleInputChange, GoToNext}) {
             />
         </div>
         <div className='mt-5'>
-            <h2 className='text-sm font-medium'>Interview Duraton</h2>
+            <h2 className='text-sm font-medium'>Interview Duration</h2>
             <Select onValueChange={(value) => onHandleInputChange('duration', value)} defaultValue="5" className="w-full mt-2">
   <SelectTrigger className="w-full mt-2">
     <SelectValue placeholder="Select Duration" />
