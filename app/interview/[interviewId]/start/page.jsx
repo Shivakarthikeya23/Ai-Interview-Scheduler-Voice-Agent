@@ -8,6 +8,7 @@ import AlertConfirmation from "./_components/AlertConfirmation";
 import { toast } from "sonner";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/services/supabaseClient";
 
 function StartInterview() {
   const { interviewInfo, setInterviewInfo } = useContext(InterviewDataContext);
@@ -170,6 +171,36 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
     }
   }, [vapi, interviewInfo, callStarted]);
 
+  // Persists the candidate's feedback server-side so the recruiter can see
+  // it from their own dashboard/device — candidates never share a browser
+  // with the recruiter, so localStorage alone can't bridge that gap.
+  const saveInterviewResponse = useCallback(async (feedback, conversationData, durationSeconds) => {
+    const interviewId = interviewInfo?.interviewData?.interviewId;
+    const ownerEmail = interviewInfo?.interviewData?.userEmail;
+    if (!interviewId || !ownerEmail) return;
+
+    try {
+      const { error: insertError } = await supabase.from("Responses").insert([
+        {
+          interviewId,
+          userEmail: ownerEmail,
+          candidateName: interviewInfo?.userName,
+          candidateEmail: interviewInfo?.userEmail,
+          jobPosition: interviewInfo?.interviewData?.jobPosition,
+          feedback,
+          conversation: conversationData || [],
+          duration: durationSeconds,
+          totalQuestions: interviewInfo?.interviewData?.questionList?.length || 0,
+        },
+      ]);
+      if (insertError) {
+        console.error("Error saving response:", insertError);
+      }
+    } catch (err) {
+      console.error("Error saving response:", err);
+    }
+  }, [interviewInfo]);
+
   const stopInterview = useCallback(async () => {
     if (feedbackGeneratedRef.current) return; // Prevent multiple calls
 
@@ -260,25 +291,13 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
 
       if (noResponse) {
         feedbackGeneratedRef.current = true;
-        const candidateKey = `candidate_${interviewInfo?.interviewData?.interviewId}_${Date.now()}`;
-        const feedbackObject = {
-          feedback: {
-            rating: { technicalSkills: 0, communication: 0, problemSolving: 0, experience: 0 },
-            summary: "No response received from candidate.",
-            Recommendation: "Do Not Hire",
-            RecommendationMsg: "Candidate did not give any response during the interview.",
-          },
-          interviewId: interviewInfo?.interviewData?.interviewId,
-          candidateName: interviewInfo?.userName,
-          candidateEmail: interviewInfo?.userEmail,
-          jobPosition: interviewInfo?.interviewData?.jobPosition,
-          timestamp: new Date().toISOString(),
-          duration: timer,
-          totalQuestions: interviewInfo?.interviewData?.questionList?.length || 0,
-          conversation: conversation || [],
+        const noResponseFeedback = {
+          rating: { technicalSkills: 0, communication: 0, problemSolving: 0, experience: 0 },
+          summary: "No response received from candidate.",
+          Recommendation: "Do Not Hire",
+          RecommendationMsg: "Candidate did not give any response during the interview.",
         };
-        localStorage.setItem(candidateKey, JSON.stringify(feedbackObject));
-        localStorage.setItem(`interviewFeedback_${Date.now()}`, JSON.stringify(feedbackObject));
+        saveInterviewResponse(noResponseFeedback, conversation, timer);
         router.push(`/interview/${interviewInfo?.interviewData?.interviewId}/thank-you?noResponse=1`);
         return;
       }
@@ -360,7 +379,7 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
       vapi.off("message", handleMessage);
       vapi.off("error", handleError);
     };
-  }, [vapi, conversation, router]);
+  }, [vapi, conversation, router, saveInterviewResponse]);
 
   const GenerateFeedback = async () => {
     if (!conversation || conversation.length === 0) {
@@ -389,25 +408,7 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
           const feedbackData = JSON.parse(cleanedContent);
           console.log("Parsed feedback:", feedbackData);
 
-          // Store feedback in localStorage with unique key
-          const feedbackKey = `interviewFeedback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          const candidateKey = `candidate_${interviewInfo?.interviewData?.interviewId}_${Date.now()}`;
-          const feedbackObject = {
-            feedback: feedbackData,
-            interviewId: interviewInfo?.interviewData?.interviewId,
-            candidateName: interviewInfo?.userName,
-            candidateEmail: interviewInfo?.userEmail,
-            jobPosition: interviewInfo?.interviewData?.jobPosition,
-            timestamp: new Date().toISOString(),
-            duration: timer,
-            totalQuestions: interviewInfo?.interviewData?.questionList?.length || 0,
-            conversation,
-          };
-
-          localStorage.setItem(feedbackKey, JSON.stringify(feedbackObject));
-          localStorage.setItem(candidateKey, JSON.stringify(feedbackObject));
-          // Also store in main key for immediate feedback viewing
-          localStorage.setItem('interviewFeedback', JSON.stringify(feedbackObject));
+          await saveInterviewResponse(feedbackData, conversation, timer);
 
           toast.success("Interview feedback generated successfully!");
 
