@@ -29,7 +29,9 @@ import Logo from "@/components/Logo"
       <Sidebar>
         <SidebarHeader className='flex items-center mt-5 space-y-4'>
         <Logo />
-        <Button className='w-full mt-5 p-5'> <Plus /> Create new interview </Button>
+        <Link href='/dashboard/create-interview' className='w-full'>
+          <Button className='w-full mt-5 p-5'> <Plus /> Create new interview </Button>
+        </Link>
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
