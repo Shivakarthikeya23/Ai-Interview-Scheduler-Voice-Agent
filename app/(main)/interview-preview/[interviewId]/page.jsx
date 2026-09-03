@@ -55,31 +55,32 @@ function InterviewPreviewPage() {
 
             setInterview(interviewData);
 
-            const allFeedback = [];
-            const seen = new Set();
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (!key || (!key.startsWith('interviewFeedback_') && !key.startsWith('candidate_'))) continue;
-                if (key === 'interviewFeedback') continue;
-                try {
-                    const feedbackData = JSON.parse(localStorage.getItem(key));
-                    if (feedbackData?.interviewId !== interviewId) continue;
-                    const id = key;
-                    if (seen.has(id)) continue;
-                    seen.add(id);
-                    allFeedback.push({ id, ...feedbackData, status: 'completed' });
-                } catch (e) { /* skip */ }
+            const { data: responses, error: responsesError } = await supabase
+                .from('Responses')
+                .select('*')
+                .eq('interviewId', interviewId)
+                .eq('userEmail', user.email)
+                .order('created_at', { ascending: false });
+
+            if (responsesError) {
+                console.error('Error fetching responses:', responsesError);
+                toast.error('Failed to load candidate feedback');
+                setCandidates([]);
+            } else {
+                setCandidates((responses || []).map((response) => ({
+                    id: response.id,
+                    interviewId: response.interviewId,
+                    candidateName: response.candidateName,
+                    candidateEmail: response.candidateEmail,
+                    jobPosition: response.jobPosition,
+                    feedback: response.feedback,
+                    conversation: response.conversation,
+                    duration: response.duration,
+                    totalQuestions: response.totalQuestions,
+                    timestamp: response.created_at,
+                    status: 'completed',
+                })));
             }
-            const main = localStorage.getItem('interviewFeedback');
-            if (main) {
-                try {
-                    const feedbackData = JSON.parse(main);
-                    if (feedbackData?.interviewId === interviewId && !seen.has('interviewFeedback')) {
-                        allFeedback.push({ id: 'interviewFeedback', ...feedbackData, status: 'completed' });
-                    }
-                } catch (e) { /* skip */ }
-            }
-            setCandidates(allFeedback);
         } catch (error) {
             console.error('Error:', error);
             toast.error('Failed to load interview data');

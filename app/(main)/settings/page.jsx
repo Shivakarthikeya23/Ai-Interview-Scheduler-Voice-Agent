@@ -138,6 +138,12 @@ function SettingsPage() {
         
         setLoading(true);
         try {
+            // Delete candidate responses
+            const { error: responsesError } = await supabase
+                .from('Responses')
+                .delete()
+                .eq('userEmail', user.email);
+
             // Delete interviews
             const { error: interviewsError } = await supabase
                 .from('Interviews')
@@ -156,8 +162,8 @@ function SettingsPage() {
                 .delete()
                 .eq('email', user.email);
 
-            if (interviewsError || settingsError || userError) {
-                console.error('Error deleting data:', { interviewsError, settingsError, userError });
+            if (responsesError || interviewsError || settingsError || userError) {
+                console.error('Error deleting data:', { responsesError, interviewsError, settingsError, userError });
                 toast.error('Failed to delete some data');
             } else {
                 toast.success('All data deleted successfully');

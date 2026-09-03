@@ -8,6 +8,7 @@ import AlertConfirmation from "./_components/AlertConfirmation";
 import { toast } from "sonner";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/services/supabaseClient";
 
 function StartInterview() {
   const { interviewInfo, setInterviewInfo } = useContext(InterviewDataContext);
@@ -170,6 +171,36 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
     }
   }, [vapi, interviewInfo, callStarted]);
 
+  // Persists the candidate's feedback server-side so the recruiter can see
+  // it from their own dashboard/device — candidates never share a browser
+  // with the recruiter, so localStorage alone can't bridge that gap.
+  const saveInterviewResponse = useCallback(async (feedback, conversationData, durationSeconds) => {
+    const interviewId = interviewInfo?.interviewData?.interviewId;
+    const ownerEmail = interviewInfo?.interviewData?.userEmail;
+    if (!interviewId || !ownerEmail) return;
+
+    try {
+      const { error: insertError } = await supabase.from("Responses").insert([
+        {
+          interviewId,
+          userEmail: ownerEmail,
+          candidateName: interviewInfo?.userName,
+          candidateEmail: interviewInfo?.userEmail,
+          jobPosition: interviewInfo?.interviewData?.jobPosition,
+          feedback,
+          conversation: conversationData || [],
+          duration: durationSeconds,
+          totalQuestions: interviewInfo?.interviewData?.questionList?.length || 0,
+        },
+      ]);
+      if (insertError) {
+        console.error("Error saving response:", insertError);
+      }
+    } catch (err) {
+      console.error("Error saving response:", err);
+    }
+  }, [interviewInfo]);
+
   const stopInterview = useCallback(async () => {
     if (feedbackGeneratedRef.current) return; // Prevent multiple calls
 
@@ -258,31 +289,21 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
       const userMessages = conversation?.filter((m) => m.role === "user")?.length ?? 0;
       const noResponse = reason?.includes("silence-timed-out") && (!conversation?.length || userMessages < 1);
 
+      lastEndedReasonRef.current = "";
+
       if (noResponse) {
         feedbackGeneratedRef.current = true;
-        const candidateKey = `candidate_${interviewInfo?.interviewData?.interviewId}_${Date.now()}`;
-        const feedbackObject = {
-          feedback: {
-            rating: { technicalSkills: 0, communication: 0, problemSolving: 0, experience: 0 },
-            summary: "No response received from candidate.",
-            Recommendation: "Do Not Hire",
-            RecommendationMsg: "Candidate did not give any response during the interview.",
-          },
-          interviewId: interviewInfo?.interviewData?.interviewId,
-          candidateName: interviewInfo?.userName,
-          candidateEmail: interviewInfo?.userEmail,
-          jobPosition: interviewInfo?.interviewData?.jobPosition,
-          timestamp: new Date().toISOString(),
-          duration: timer,
-          totalQuestions: interviewInfo?.interviewData?.questionList?.length || 0,
-          conversation: conversation || [],
+        const noResponseFeedback = {
+          rating: { technicalSkills: 0, communication: 0, problemSolving: 0, experience: 0 },
+          summary: "No response received from candidate.",
+          Recommendation: "Do Not Hire",
+          RecommendationMsg: "Candidate did not give any response during the interview.",
         };
-        localStorage.setItem(candidateKey, JSON.stringify(feedbackObject));
-        localStorage.setItem(`interviewFeedback_${Date.now()}`, JSON.stringify(feedbackObject));
+        saveInterviewResponse(noResponseFeedback, conversation, timer);
         router.push(`/interview/${interviewInfo?.interviewData?.interviewId}/thank-you?noResponse=1`);
         return;
       }
-      if (conversation && conversation.length > 0) {
+      if (conversation && conversation.length > 0 && userMessages > 0) {
         feedbackGeneratedRef.current = true;
         GenerateFeedback();
       } else {
@@ -307,16 +328,34 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
     };
 
     const handleError = (err) => {
-      const errorMsg = err?.errorMsg || err?.message || "";
+      // Vapi/Daily can send errorMsg as an object (e.g. camera/mic permission
+      // errors) instead of a string - calling .toLowerCase() on it used to
+      // throw here, which meant this whole handler never ran and the UI got
+      // stuck on "Connecting..." with no error shown at all.
+      const rawErrorMsg = err?.errorMsg ?? err?.message ?? "";
+      const errorMsg = typeof rawErrorMsg === "string"
+        ? rawErrorMsg
+        : (rawErrorMsg?.message || rawErrorMsg?.msg || rawErrorMsg?.type || "");
+      // Read-only: a trailing "ejection" error often fires right after the
+      // real call-end event for the same termination (e.g. silence timeout),
+      // and handleCallEnd still needs lastEndedReasonRef to classify it as
+      // "no response" - clearing it here raced handleCallEnd and made a
+      // silence-timeout with zero candidate responses fall through to a
+      // real (and pointless) feedback-generation attempt on an empty
+      // conversation. handleCallEnd resets it once it's done reading it.
       const endedReason =
         lastEndedReasonRef.current ||
         err?.error?.endedReason ||
         err?.endedReason ||
         "";
-      lastEndedReasonRef.current = "";
       const errorStr = JSON.stringify(err || {}).toLowerCase();
       console.error("Vapi error (full):", err);
       console.error("Vapi endedReason:", endedReason || "(none)");
+
+      const isPermissionError =
+        errorStr?.includes("camera-error") ||
+        errorStr?.includes("permission denied") ||
+        errorStr?.includes("notallowederror");
 
       const isRetryableError =
         endedReason?.includes("playht") ||
@@ -332,6 +371,9 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
       if (endedReason?.includes("silence-timed-out")) {
         toast.error("Call ended due to silence. You can take your time and try again.");
         setError("retryable");
+      } else if (isPermissionError) {
+        toast.error("Microphone access is required for the interview.");
+        setError("Camera/microphone permission was denied. Please allow microphone access in your browser and try again.");
       } else if (isRetryableError) {
         toast.error("Connection dropped. Please try again.");
         setError("retryable");
@@ -360,7 +402,7 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
       vapi.off("message", handleMessage);
       vapi.off("error", handleError);
     };
-  }, [vapi, conversation, router]);
+  }, [vapi, conversation, router, saveInterviewResponse]);
 
   const GenerateFeedback = async () => {
     if (!conversation || conversation.length === 0) {
@@ -389,25 +431,7 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
           const feedbackData = JSON.parse(cleanedContent);
           console.log("Parsed feedback:", feedbackData);
 
-          // Store feedback in localStorage with unique key
-          const feedbackKey = `interviewFeedback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          const candidateKey = `candidate_${interviewInfo?.interviewData?.interviewId}_${Date.now()}`;
-          const feedbackObject = {
-            feedback: feedbackData,
-            interviewId: interviewInfo?.interviewData?.interviewId,
-            candidateName: interviewInfo?.userName,
-            candidateEmail: interviewInfo?.userEmail,
-            jobPosition: interviewInfo?.interviewData?.jobPosition,
-            timestamp: new Date().toISOString(),
-            duration: timer,
-            totalQuestions: interviewInfo?.interviewData?.questionList?.length || 0,
-            conversation,
-          };
-
-          localStorage.setItem(feedbackKey, JSON.stringify(feedbackObject));
-          localStorage.setItem(candidateKey, JSON.stringify(feedbackObject));
-          // Also store in main key for immediate feedback viewing
-          localStorage.setItem('interviewFeedback', JSON.stringify(feedbackObject));
+          await saveInterviewResponse(feedbackData, conversation, timer);
 
           toast.success("Interview feedback generated successfully!");
 
