@@ -26,13 +26,14 @@ function Interview() {
     interviewId && GetInterviewDetails();
   }, [interviewId]);
 
+  // Interviews has no anonymous read access (a candidate is never signed
+  // in) - this RPC looks up exactly one interview by its (unguessable)
+  // interviewId without exposing the whole table to anonymous listing.
   const GetInterviewDetails = async () => {
     setLoading(true);
     try {
       let { data: Interviews, error } = await supabase
-        .from("Interviews")
-        .select("jobPosition,  jobDescription, duration, type")
-        .eq("interviewId", interviewId);
+        .rpc("get_public_interview", { p_interview_id: interviewId });
 
       if (error || !Interviews?.length) {
         toast("Incorrect Interview link");
@@ -52,9 +53,7 @@ function Interview() {
     setLoading(true);
     try {
       let { data: Interviews, error } = await supabase
-        .from("Interviews")
-        .select("*")
-        .eq("interviewId", interviewId);
+        .rpc("get_public_interview", { p_interview_id: interviewId });
 
       if (error || !Interviews?.length) {
         toast("Unable to join interview. Please check the link and try again.");
