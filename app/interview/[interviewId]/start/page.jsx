@@ -289,6 +289,8 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
       const userMessages = conversation?.filter((m) => m.role === "user")?.length ?? 0;
       const noResponse = reason?.includes("silence-timed-out") && (!conversation?.length || userMessages < 1);
 
+      lastEndedReasonRef.current = "";
+
       if (noResponse) {
         feedbackGeneratedRef.current = true;
         const noResponseFeedback = {
@@ -301,7 +303,7 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
         router.push(`/interview/${interviewInfo?.interviewData?.interviewId}/thank-you?noResponse=1`);
         return;
       }
-      if (conversation && conversation.length > 0) {
+      if (conversation && conversation.length > 0 && userMessages > 0) {
         feedbackGeneratedRef.current = true;
         GenerateFeedback();
       } else {
@@ -326,16 +328,34 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
     };
 
     const handleError = (err) => {
-      const errorMsg = err?.errorMsg || err?.message || "";
+      // Vapi/Daily can send errorMsg as an object (e.g. camera/mic permission
+      // errors) instead of a string - calling .toLowerCase() on it used to
+      // throw here, which meant this whole handler never ran and the UI got
+      // stuck on "Connecting..." with no error shown at all.
+      const rawErrorMsg = err?.errorMsg ?? err?.message ?? "";
+      const errorMsg = typeof rawErrorMsg === "string"
+        ? rawErrorMsg
+        : (rawErrorMsg?.message || rawErrorMsg?.msg || rawErrorMsg?.type || "");
+      // Read-only: a trailing "ejection" error often fires right after the
+      // real call-end event for the same termination (e.g. silence timeout),
+      // and handleCallEnd still needs lastEndedReasonRef to classify it as
+      // "no response" - clearing it here raced handleCallEnd and made a
+      // silence-timeout with zero candidate responses fall through to a
+      // real (and pointless) feedback-generation attempt on an empty
+      // conversation. handleCallEnd resets it once it's done reading it.
       const endedReason =
         lastEndedReasonRef.current ||
         err?.error?.endedReason ||
         err?.endedReason ||
         "";
-      lastEndedReasonRef.current = "";
       const errorStr = JSON.stringify(err || {}).toLowerCase();
       console.error("Vapi error (full):", err);
       console.error("Vapi endedReason:", endedReason || "(none)");
+
+      const isPermissionError =
+        errorStr?.includes("camera-error") ||
+        errorStr?.includes("permission denied") ||
+        errorStr?.includes("notallowederror");
 
       const isRetryableError =
         endedReason?.includes("playht") ||
@@ -351,6 +371,9 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
       if (endedReason?.includes("silence-timed-out")) {
         toast.error("Call ended due to silence. You can take your time and try again.");
         setError("retryable");
+      } else if (isPermissionError) {
+        toast.error("Microphone access is required for the interview.");
+        setError("Camera/microphone permission was denied. Please allow microphone access in your browser and try again.");
       } else if (isRetryableError) {
         toast.error("Connection dropped. Please try again.");
         setError("retryable");
