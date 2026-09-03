@@ -8,6 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, Search, Filter, User, Calendar, Star, Download, Eye, Mail } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { supabase } from '@/services/supabaseClient'
+import { useUser } from '@/app/Provider'
+import Link from 'next/link'
 
 function CandidatesPage() {
     const [candidates, setCandidates] = useState([]);
@@ -16,57 +19,60 @@ function CandidatesPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [sortBy, setSortBy] = useState('newest');
+    const { user } = useUser();
     const router = useRouter();
 
     useEffect(() => {
-        fetchCandidates();
-    }, []);
+        if (user?.email) {
+            fetchCandidates();
+        }
+    }, [user]);
 
     useEffect(() => {
         filterAndSortCandidates();
     }, [candidates, searchTerm, filterStatus, sortBy]);
 
-    const fetchCandidates = () => {
+    const fetchCandidates = async () => {
         try {
-            // Get real candidates from localStorage feedback data
-            const realCandidates = [];
-            
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key && (key.startsWith('interviewFeedback_') || key.startsWith('candidate_'))) {
-                    try {
-                        const feedbackData = JSON.parse(localStorage.getItem(key));
-                        if (feedbackData.candidateName && feedbackData.interviewId) {
-                            const overallRating = feedbackData.feedback?.rating ? 
-                                Math.round(Object.values(feedbackData.feedback.rating).reduce((sum, rating) => sum + rating, 0) / Object.keys(feedbackData.feedback.rating).length) : 
-                                null;
-                            
-                            realCandidates.push({
-                                id: key,
-                                name: feedbackData.candidateName,
-                                email: feedbackData.candidateEmail || 'No email provided',
-                                position: feedbackData.jobPosition,
-                                interviewId: feedbackData.interviewId,
-                                interviewDate: feedbackData.timestamp,
-                                status: 'completed',
-                                rating: overallRating,
-                                duration: feedbackData.duration ? Math.floor(feedbackData.duration / 60) : null,
-                                feedback: feedbackData.feedback?.summary || feedbackData.feedback?.summery || 'No feedback available',
-                                recommendation: feedbackData.feedback?.Recommendation || 'Not Available'
-                            });
-                        }
-                    } catch (error) {
-                        console.error('Error parsing feedback data:', error);
-                    }
-                }
+            setLoading(true);
+            const { data, error } = await supabase
+                .from('Responses')
+                .select('*')
+                .eq('userEmail', user.email)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error fetching candidates:', error);
+                toast.error('Failed to load candidates');
+                return;
             }
-            
-            // Remove duplicates based on name and email
-            const uniqueCandidates = realCandidates.filter((candidate, index, self) => 
-                index === self.findIndex(c => c.name === candidate.name && c.email === candidate.email)
-            );
-            
-            setCandidates(uniqueCandidates);
+
+            const realCandidates = (data || [])
+                .filter((response) => response.candidateName && response.interviewId)
+                .map((response) => {
+                    const overallRating = response.feedback?.rating ?
+                        Math.round(Object.values(response.feedback.rating).reduce((sum, rating) => sum + rating, 0) / Object.keys(response.feedback.rating).length) :
+                        null;
+
+                    return {
+                        id: response.id,
+                        name: response.candidateName,
+                        email: response.candidateEmail || 'No email provided',
+                        position: response.jobPosition,
+                        interviewId: response.interviewId,
+                        interviewDate: response.created_at,
+                        status: 'completed',
+                        rating: overallRating,
+                        durationSeconds: response.duration || 0,
+                        duration: response.duration ? Math.floor(response.duration / 60) : null,
+                        feedback: response.feedback?.summary || response.feedback?.summery || 'No feedback available',
+                        recommendation: response.feedback?.Recommendation || 'Not Available',
+                        totalQuestions: response.totalQuestions,
+                        rawFeedback: response.feedback,
+                    };
+                });
+
+            setCandidates(realCandidates);
         } catch (error) {
             console.error('Error fetching candidates:', error);
             toast.error('Failed to load candidates');
@@ -359,23 +365,14 @@ function CandidatesPage() {
                                         )}
 
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <Button 
-                                                size="sm" 
-                                                variant="outline"
-                                                onClick={() => {
-                                                    // Store candidate data for feedback page
-                                                    const feedbackData = localStorage.getItem(candidate.id);
-                                                    if (feedbackData) {
-                                                        localStorage.setItem('interviewFeedback', feedbackData);
-                                                        router.push('/feedback');
-                                                    }
-                                                }}
-                                            >
-                                                <Eye className="w-4 h-4 mr-1" />
-                                                View Details
-                                            </Button>
-                                            <Button 
-                                                size="sm" 
+                                            <Link href={`/feedback/${candidate.interviewId}/${candidate.id}`}>
+                                                <Button size="sm" variant="outline">
+                                                    <Eye className="w-4 h-4 mr-1" />
+                                                    View Details
+                                                </Button>
+                                            </Link>
+                                            <Button
+                                                size="sm"
                                                 variant="outline"
                                                 onClick={() => {
                                                     if (candidate.email && candidate.email !== 'No email provided') {
@@ -389,40 +386,36 @@ function CandidatesPage() {
                                                 Contact
                                             </Button>
                                             {candidate.status === 'completed' && (
-                                                <Button 
-                                                    size="sm" 
+                                                <Button
+                                                    size="sm"
                                                     variant="outline"
                                                     onClick={() => {
-                                                        const feedbackData = localStorage.getItem(candidate.id);
-                                                        if (feedbackData) {
-                                                            const data = JSON.parse(feedbackData);
-                                                            const exportData = {
-                                                                candidateInfo: {
-                                                                    name: data.candidateName,
-                                                                    email: data.candidateEmail,
-                                                                    interviewDate: data.timestamp
-                                                                },
-                                                                interviewDetails: {
-                                                                    position: data.jobPosition,
-                                                                    duration: data.duration,
-                                                                    totalQuestions: data.totalQuestions
-                                                                },
-                                                                feedback: data.feedback,
-                                                                overallRating: getOverallRating(data.feedback?.rating)
-                                                            };
-                                                            
-                                                            const dataStr = JSON.stringify(exportData, null, 2);
-                                                            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-                                                            
-                                                            const exportFileDefaultName = `${candidate.name}-interview-report-${new Date().toISOString().split('T')[0]}.json`;
-                                                            
-                                                            const linkElement = document.createElement('a');
-                                                            linkElement.setAttribute('href', dataUri);
-                                                            linkElement.setAttribute('download', exportFileDefaultName);
-                                                            linkElement.click();
-                                                            
-                                                            toast.success('Report downloaded successfully');
-                                                        }
+                                                        const exportData = {
+                                                            candidateInfo: {
+                                                                name: candidate.name,
+                                                                email: candidate.email,
+                                                                interviewDate: candidate.interviewDate
+                                                            },
+                                                            interviewDetails: {
+                                                                position: candidate.position,
+                                                                duration: candidate.durationSeconds,
+                                                                totalQuestions: candidate.totalQuestions
+                                                            },
+                                                            feedback: candidate.rawFeedback,
+                                                            overallRating: candidate.rating
+                                                        };
+
+                                                        const dataStr = JSON.stringify(exportData, null, 2);
+                                                        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+
+                                                        const exportFileDefaultName = `${candidate.name}-interview-report-${new Date().toISOString().split('T')[0]}.json`;
+
+                                                        const linkElement = document.createElement('a');
+                                                        linkElement.setAttribute('href', dataUri);
+                                                        linkElement.setAttribute('download', exportFileDefaultName);
+                                                        linkElement.click();
+
+                                                        toast.success('Report downloaded successfully');
                                                     }}
                                                 >
                                                     <Download className="w-4 h-4 mr-1" />

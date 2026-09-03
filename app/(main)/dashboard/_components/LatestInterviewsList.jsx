@@ -59,6 +59,7 @@ function LatestInterviewsList() {
                 console.error('Error deleting interview:', error);
                 toast.error('Failed to delete interview');
             } else {
+                await supabase.from('Responses').delete().eq('interviewId', interviewId);
                 toast.success('Interview deleted successfully');
                 setInterviewList(prev => prev.filter(interview => interview.interviewId !== interviewId));
             }

@@ -7,6 +7,7 @@ import { Progress } from '@/components/ui/progress'
 import { ArrowLeft, Calendar, User, Star, TrendingUp, Award, AlertCircle, Clock, Download, Share2, BarChart3 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { supabase } from '@/services/supabaseClient'
 
 function FeedbackPage() {
     const { interviewId, candidateId } = useParams();
@@ -20,41 +21,33 @@ function FeedbackPage() {
         }
     }, [interviewId, candidateId]);
 
-    const loadFeedbackData = () => {
+    const loadFeedbackData = async () => {
         try {
             setLoading(true);
-            
-            let feedbackJson = localStorage.getItem(candidateId);
-            if (!feedbackJson) {
-                let fallback = null;
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i);
-                    if (!key) continue;
-                    try {
-                        const data = JSON.parse(localStorage.getItem(key));
-                        if (data?.interviewId !== interviewId) continue;
-                        if (key.startsWith('interviewFeedback_') || key.startsWith('candidate_') || key === 'interviewFeedback') {
-                            if (key === candidateId) { feedbackJson = localStorage.getItem(key); break; }
-                            if (!fallback) fallback = localStorage.getItem(key);
-                        }
-                    } catch (e) { /* skip */ }
-                }
-                if (!feedbackJson && fallback) feedbackJson = fallback;
-            }
 
-            if (feedbackJson) {
-                const parsed = JSON.parse(feedbackJson);
-                // Verify this feedback belongs to the correct interview
-                if (parsed.interviewId === interviewId) {
-                    setFeedbackData(parsed);
-                } else {
-                    toast.error('Feedback data mismatch');
-                    router.push('/dashboard');
-                }
-            } else {
+            const { data, error } = await supabase
+                .from('Responses')
+                .select('*')
+                .eq('id', candidateId)
+                .single();
+
+            if (error || !data || data.interviewId !== interviewId) {
                 toast.error('Feedback data not found');
                 router.push('/dashboard');
+                return;
             }
+
+            setFeedbackData({
+                feedback: data.feedback,
+                interviewId: data.interviewId,
+                candidateName: data.candidateName,
+                candidateEmail: data.candidateEmail,
+                jobPosition: data.jobPosition,
+                timestamp: data.created_at,
+                duration: data.duration,
+                totalQuestions: data.totalQuestions,
+                conversation: data.conversation,
+            });
         } catch (error) {
             console.error('Error loading feedback data:', error);
             toast.error('Error loading feedback data');

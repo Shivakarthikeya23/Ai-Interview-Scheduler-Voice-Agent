@@ -8,29 +8,46 @@ import { ArrowLeft, Calendar, User, Star, TrendingUp, Award, AlertCircle, Clock,
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { supabase } from '@/services/supabaseClient'
+import { useUser } from '@/app/Provider'
 
 function FeedbackPage() {
     const [interviewsWithFeedback, setInterviewsWithFeedback] = useState([]);
     const [loading, setLoading] = useState(true);
+    const { user } = useUser();
     const router = useRouter();
 
     useEffect(() => {
-        const byInterview = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (!key || (!key.startsWith('interviewFeedback_') && !key.startsWith('candidate_'))) continue;
-            try {
-                const data = JSON.parse(localStorage.getItem(key));
-                if (data?.interviewId && data?.candidateName) {
-                    const id = data.interviewId;
-                    if (!byInterview[id]) byInterview[id] = { jobPosition: data.jobPosition, candidates: [] };
-                    byInterview[id].candidates.push({ key, ...data });
-                }
-            } catch (e) { /* skip */ }
-        }
-        setInterviewsWithFeedback(Object.entries(byInterview).map(([id, v]) => ({ interviewId: id, ...v })));
-        setLoading(false);
-    }, []);
+        if (!user?.email) return;
+
+        const fetchFeedback = async () => {
+            setLoading(true);
+            const { data, error } = await supabase
+                .from('Responses')
+                .select('*')
+                .eq('userEmail', user.email)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error fetching feedback:', error);
+                toast.error('Failed to load feedback');
+                setLoading(false);
+                return;
+            }
+
+            const byInterview = {};
+            (data || []).forEach((response) => {
+                if (!response.interviewId || !response.candidateName) return;
+                const id = response.interviewId;
+                if (!byInterview[id]) byInterview[id] = { jobPosition: response.jobPosition, candidates: [] };
+                byInterview[id].candidates.push(response);
+            });
+            setInterviewsWithFeedback(Object.entries(byInterview).map(([id, v]) => ({ interviewId: id, ...v })));
+            setLoading(false);
+        };
+
+        fetchFeedback();
+    }, [user]);
 
     if (loading) {
         return (
