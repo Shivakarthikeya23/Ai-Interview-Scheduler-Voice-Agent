@@ -2,7 +2,13 @@ import { FEEDBACK_PROMPT } from "@/services/Constants";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
-const MODELS = ["google/gemma-3-4b-it:free", "meta-llama/llama-3.1-8b-instruct:free"];
+// google/gemma-3-4b-it:free and meta-llama/llama-3.1-8b-instruct:free were
+// both deprecated by OpenRouter (now 404 "unavailable for free"). Verified
+// these two are currently live and return real (non-empty) JSON content
+// within a 2000-token budget for this prompt - some other "free" models on
+// OpenRouter are reasoning models that can burn the whole budget on hidden
+// reasoning tokens and return null content instead.
+const MODELS = ["nvidia/nemotron-3.5-lightning:free", "minimax/minimax-m2.7:free"];
 const RETRY_DELAY_MS = 4000;
 
 export async function POST(req) {
@@ -39,8 +45,12 @@ export async function POST(req) {
         } catch (err) {
           lastError = err;
           const is429 = err?.status === 429 || err?.code === 429 || String(err?.message || "").includes("429");
+          // A non-429 error (e.g. the model itself is gone, a 404) can never
+          // succeed on retry, and used to `throw` straight out of both loops
+          // here - skipping every other model in MODELS entirely. Now it
+          // just gives up on *this* model and moves to the next one instead.
           if (is429 && attempt < 1) continue;
-          if (!is429) throw err;
+          break;
         }
       }
     }
