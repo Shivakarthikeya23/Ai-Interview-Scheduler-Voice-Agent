@@ -6,6 +6,7 @@ import { supabase } from '@/services/supabaseClient';
 import { useUser } from '@/app/Provider';
 import { Button } from '@/components/ui/button';
 import { v4 } from 'uuid';
+import { toast } from 'sonner';
 
 function QuestionsList({formData, onCreateLink}) {
 
@@ -32,16 +33,26 @@ function QuestionsList({formData, onCreateLink}) {
           const cleaned = content.replace(/```json|```/g, '').trim();
           try {
             const parsed = JSON.parse(cleaned);
-            setQuestionList(parsed?.interviewQuestions || []); // Just store the array directly
+            const questions = parsed?.interviewQuestions || [];
+            setQuestionList(questions);
+            if (!questions.length) {
+              toast.error("AI returned no questions. Please try again.");
+            }
           } catch (err) {
             console.error("Failed to parse interview questions:", err);
             setQuestionList([]);
+            toast.error("Failed to parse generated questions. Please try again.");
           }
+        } else {
+          setQuestionList([]);
+          toast.error("No questions were generated. Please try again.");
         }
 
         }catch(error){
-            console.log(error);
-            setLoading(false);
+            console.error(error);
+            setQuestionList([]);
+            const message = error?.response?.data?.error || "Failed to generate interview questions. Please try again.";
+            toast.error(message);
         }finally{
             setLoading(false);
         }
