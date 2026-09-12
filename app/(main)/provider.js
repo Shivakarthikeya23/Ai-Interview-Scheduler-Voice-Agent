@@ -25,6 +25,11 @@ function DashboardProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        // INITIAL_SESSION fires on every mount, including while a PKCE code
+        // exchange from an OAuth redirect is still resolving - treating its
+        // (temporarily null) session as a sign-out bounced people straight
+        // back to /auth right after a successful Google login.
+        if (event === 'INITIAL_SESSION') return;
         if (event === 'SIGNED_OUT' || !session) {
           router.push('/auth');
         }
