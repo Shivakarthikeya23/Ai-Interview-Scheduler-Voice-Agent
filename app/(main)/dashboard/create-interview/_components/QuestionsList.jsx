@@ -88,7 +88,7 @@ function QuestionsList({formData, onCreateLink}) {
         console.log("Insert success, data:", data);
       }
 
-      onCreateLink(interviewId)
+      onCreateLink(interviewId, filtered)
     };
     
    
