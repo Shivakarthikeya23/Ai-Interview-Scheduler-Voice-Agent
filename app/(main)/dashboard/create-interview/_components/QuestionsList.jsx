@@ -7,6 +7,7 @@ import { useUser } from '@/app/Provider';
 import { Button } from '@/components/ui/button';
 import { v4 } from 'uuid';
 import { toast } from 'sonner';
+import { extractJsonObject } from '@/lib/utils';
 
 function QuestionsList({formData, onCreateLink}) {
 
@@ -30,8 +31,9 @@ function QuestionsList({formData, onCreateLink}) {
         const content = result.data?.content;
 
         if (typeof content === 'string') {
-          const cleaned = content.replace(/```json|```/g, '').trim();
+          const cleaned = extractJsonObject(content);
           try {
+            if (!cleaned) throw new Error("No JSON object found in AI response");
             const parsed = JSON.parse(cleaned);
             const questions = parsed?.interviewQuestions || [];
             setQuestionList(questions);
