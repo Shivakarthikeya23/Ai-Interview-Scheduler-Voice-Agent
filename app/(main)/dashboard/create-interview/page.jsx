@@ -30,8 +30,11 @@ function CreateInterview() {
         setStep(prev => prev + 1);
     }
 
-    const onCreateLink =  (interviewId) => {
+    const onCreateLink =  (interviewId, questionList) => {
         setInterviewId(interviewId);
+        if (questionList) {
+            setFormData(prev => ({ ...prev, questionList }));
+        }
         setStep(step + 1);
     }
   return (
@@ -43,7 +46,7 @@ function CreateInterview() {
         <Progress value={step*33.33} className='my-5' />
         {step==1?<FormContainer onHandleInputChange={onHandleInputChange}
         GoToNext={()=>onGoToNext()} />
-:step==2? <QuestionsList formData={formData} onCreateLink={(interviewId) => onCreateLink(interviewId)} /> : 
+:step==2? <QuestionsList formData={formData} onCreateLink={(interviewId, questionList) => onCreateLink(interviewId, questionList)} /> :
 step==3? <InterviewLink  interviewId={interviewId} formData={formData} /> : null }
     </div>
   )
