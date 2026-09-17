@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/services/supabaseClient";
+import { extractJsonObject } from "@/lib/utils";
 
 function StartInterview() {
   const { interviewInfo, setInterviewInfo } = useContext(InterviewDataContext);
@@ -425,9 +426,10 @@ Remember: You are evaluating this candidate for a real position, so maintain pro
 
       if (result?.data?.content) {
         const content = result.data.content;
-        const cleanedContent = content.replace(/```json|```/g, '').trim();
+        const cleanedContent = extractJsonObject(content);
 
         try {
+          if (!cleanedContent) throw new Error("No JSON object found in AI response");
           const feedbackData = JSON.parse(cleanedContent);
           console.log("Parsed feedback:", feedbackData);
 
