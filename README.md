@@ -38,36 +38,89 @@ A modern, AI-powered interview platform that revolutionizes the recruitment proc
 - **ESLint** - Code linting
 - **PostCSS** - CSS processing
 
-## 📦 Installation
+## 📦 Local Setup
 
-1. **Clone the repository**
+### Prerequisites
+
+- **Node.js 20+** and npm
+- **[Supabase CLI](https://supabase.com/docs/guides/cli/getting-started)** (`npm install -g supabase`) — used to provision the database schema
+- Accounts (all have free tiers): [Supabase](https://supabase.com), [OpenRouter](https://openrouter.ai), [Vapi](https://vapi.ai), and a [Google Cloud](https://console.cloud.google.com) project for OAuth
+
+### 1. Clone and install
+
+```bash
+git clone <repository-url>
+cd ai-interview-scheduler-voice-agent
+npm install
+```
+
+### 2. Create a Supabase project and provision the schema
+
+1. Create a new project at [supabase.com/dashboard](https://supabase.com/dashboard).
+2. Log in and link this repo to it:
    ```bash
-   git clone <repository-url>
-   cd ai-interview-scheduler-voice-agent
+   supabase login
+   supabase link --project-ref <your-project-ref>
    ```
-
-2. **Install dependencies**
+   (`<your-project-ref>` is the short ID in your project's dashboard URL.)
+3. Push the schema — this creates every table (`Interviews`, `Users`, `Responses`), row-level security policy, and the `get_public_interview` RPC function used by the candidate-facing pages, all in one step:
    ```bash
-   npm install
+   supabase db push
    ```
+4. Under **Project Settings → API**, copy the **Project URL** and **`anon` `public` key** — you'll need these for `.env.local` below.
 
-3. **Set up environment variables**
-   Create a `.env.local` file in the root directory:
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   OPENROUTER_API_KEY=your_openrouter_api_key
-   NEXT_PUBLIC_VAPI_API_KEY=your_vapi_public_key
-   ```
-   For **NEXT_PUBLIC_VAPI_API_KEY**: use your **public** API key from [Vapi Dashboard](https://dashboard.vapi.ai) → Settings → API Keys. The AI voice interview requires this. In the Vapi dashboard, ensure **OpenAI** (and optionally **Deepgram**) are configured under Provider Credentials so the inline assistant can run.
+### 3. Configure Google sign-in
 
-4. **Run the development server**
-   ```bash
-   npm run dev
-   ```
+The app only supports Google OAuth via Supabase Auth. This has two halves that both need to be set up correctly — **getting this wrong is the single most common reason login breaks**, so follow both steps:
 
-5. **Open your browser**
-   Navigate to [http://localhost:3000](http://localhost:3000)
+**a) Create a Google OAuth client**
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an **OAuth 2.0 Client ID** (Application type: **Web application**).
+2. Add this **Authorized redirect URI** (replace with your own project ref):
+   `https://<your-project-ref>.supabase.co/auth/v1/callback`
+3. Copy the generated **Client ID** and **Client Secret**.
+
+**b) Enable it in Supabase, and set the correct Site URL**
+1. In your Supabase dashboard → **Authentication → Providers → Google**: enable it and paste the Client ID/Secret from above.
+2. In **Authentication → URL Configuration**:
+   - **Site URL**: `http://localhost:3000` for local development.
+   - **Redirect URLs**: add `http://localhost:3000/**` (and, separately, your production domain's equivalent — e.g. `https://your-app.vercel.app/**` — if you're also using this same Supabase project for a deployed instance).
+
+   ⚠️ **This is the setting most likely to silently break login.** If it points at the wrong domain (a stale preview deployment, `localhost` in production, or vice versa), Google sign-in will appear to work but redirect you to a broken or wrong URL afterward, with no error in your own app's code. If you're managing this via `supabase/config.toml` and `supabase config push` instead of the dashboard, the same applies to the `[auth]` block's `site_url` and `additional_redirect_urls`.
+
+### 4. Get your other API keys
+
+- **OpenRouter**: create a key at [openrouter.ai/keys](https://openrouter.ai/keys). The free-tier models referenced in `app/api/ai-model/route.jsx` and `app/api/ai-feedback/route.jsx` occasionally get deprecated or rate-limited upstream by OpenRouter — if question/feedback generation starts failing, check [openrouter.ai/models](https://openrouter.ai/models?max_price=0) for currently available `:free` models and swap them in.
+- **Vapi**: use your **public** API key from [Vapi Dashboard](https://dashboard.vapi.ai) → Settings → API Keys. In the Vapi dashboard, ensure **OpenAI** (and optionally **Deepgram**) are configured under Provider Credentials so the inline assistant can run.
+
+### 5. Set up environment variables
+
+Create a `.env.local` file in the project root:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+OPENROUTER_API_KEY=your_openrouter_api_key
+NEXT_PUBLIC_VAPI_API_KEY=your_vapi_public_key
+```
+
+If you set any of these via a script or CLI (rather than typing them directly into a dashboard), double-check the stored value has no leading/trailing whitespace or encoding artifacts (e.g. a UTF-8 BOM) — a single stray byte at the start of a key is enough to make the browser reject every request that uses it, with no useful error message pointing at the cause.
+
+### 6. Run it
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+### Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| Blank page / console error `Missing Supabase environment variables` | `.env.local` is missing or one of the two Supabase values is empty |
+| Signing in with Google redirects to a broken or wrong URL, or bounces back to the sign-in page | Supabase Auth's **Site URL** / **Redirect URLs** don't match the URL you're actually running on — see step 3b |
+| "Failed to generate questions/feedback" | The configured OpenRouter model may be deprecated or rate-limited — check `services/Constants.jsx` / the API routes and try a different `:free` model from [openrouter.ai/models](https://openrouter.ai/models?max_price=0) |
+| Voice call never connects, or errors immediately | Your browser denied microphone access, or the Vapi dashboard doesn't have an OpenAI provider credential configured |
 
 ## 🏗️ Project Structure
 
@@ -93,24 +146,19 @@ project/
 ├── hooks/                        # Custom React hooks
 ├── lib/                          # Utility functions
 ├── services/                     # External service integrations
+├── supabase/                     # Database schema (migrations) and project config
 └── public/                       # Static assets
 ```
 
-## 🔧 Configuration
+## 🔧 Database Schema
 
-### Supabase Setup
-1. Create a new Supabase project
-2. Set up authentication with Google OAuth
-3. Create the following database tables:
-   - `Interviews` - Store interview configurations
-   - `Candidates` - Store candidate information
-   - `Responses` - Store interview responses and feedback
+Managed entirely through `supabase/migrations/` (see [Local Setup](#-local-setup) above to provision it) — don't create these tables by hand, the migrations are the source of truth:
 
-### AI Model Configuration
-The application uses OpenRouter API for AI-powered features:
-- Question generation based on job descriptions
-- Real-time feedback and assessment
-- Candidate evaluation and recommendations
+- **`Interviews`** — interview configurations created by recruiters (job details, duration, type, generated questions)
+- **`Users`** — recruiter profile rows, created on first sign-in
+- **`Responses`** — candidate feedback and transcripts, one row per completed interview
+
+`Interviews` and `Users` have no anonymous access at all; a candidate reads their specific interview through the `get_public_interview(interviewId)` function instead (see `supabase/migrations/20260903000000_lock_down_interviews_and_users_rls.sql`), so a link is only useful to someone who already has it.
 
 ## 🚀 Usage
 
@@ -164,8 +212,9 @@ The application uses OpenRouter API for AI-powered features:
 
 ### Vercel (Recommended)
 1. Connect your GitHub repository to Vercel
-2. Set up environment variables in Vercel dashboard
-3. Deploy automatically on push to main branch
+2. Set the same four variables from [step 5 of Local Setup](#5-set-up-environment-variables) in the Vercel dashboard (Project Settings → Environment Variables), for **Production** and **Preview** — type them in directly rather than piping them in from a script; a value corrupted by a stray character (e.g. a shell/encoding artifact) fails silently and can be very hard to trace back
+3. In Supabase Auth's URL Configuration (or `supabase/config.toml`), set the **Site URL** and **Redirect URLs** to your actual Vercel production domain, not a specific preview deployment URL — those get garbage-collected and a stale one there will break every login
+4. Deploy automatically on push to main branch
 
 ### Other Platforms
 The application can be deployed to any platform that supports Next.js:
